@@ -1,8 +1,39 @@
 # pyrefly: ignore [missing-import]
-from sqlalchemy import Column, Integer, String, Text, DateTime
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey
+from sqlalchemy.orm import relationship
 # pyrefly: ignore [missing-import]
 from .database import Base
 from datetime import datetime
+
+# ==========================================
+# MODELOS RBAC (Control de Acceso Basado en Roles)
+# Niveles: usuario_planta, analista_ti, jefe_ti
+# ==========================================
+
+class Rol(Base):
+    __tablename__ = "roles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String, unique=True, index=True)  # Ej: usuario_planta, analista_ti, jefe_ti
+    descripcion = Column(String, nullable=True)
+
+    # Relación bidireccional con Usuario
+    usuarios = relationship("Usuario", back_populates="rol")
+
+class Usuario(Base):
+    __tablename__ = "usuarios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombres = Column(String)
+    apellidos = Column(String)
+    correo = Column(String, unique=True, index=True)
+    password_hash = Column(String)
+    rol_id = Column(Integer, ForeignKey("roles.id"))
+    activo = Column(Boolean, default=True)
+
+    # Relación bidireccional con Rol
+    rol = relationship("Rol", back_populates="usuarios")
+
 
 class Ticket(Base):
     __tablename__ = "tickets"

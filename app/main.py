@@ -5,7 +5,8 @@ from fastapi.staticfiles import StaticFiles
 import os
 from . import models
 from .database import engine
-from .routers import tickets, videos
+from .routers import tickets, videos, auth
+
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -34,6 +35,8 @@ app.add_middleware(
 
 app.include_router(tickets.router)
 app.include_router(videos.router)
+app.include_router(auth.router)
+
 
 @app.get("/")
 def read_root():

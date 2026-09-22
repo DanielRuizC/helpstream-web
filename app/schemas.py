@@ -2,6 +2,63 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 
+# ==========================================
+# ESQUEMAS RBAC (Control de Acceso Basado en Roles)
+# Niveles: usuario_planta, analista_ti, jefe_ti
+# ==========================================
+
+# --- Rol ---
+class RolBase(BaseModel):
+    nombre: str
+    descripcion: Optional[str] = None
+
+class RolCreate(RolBase):
+    pass
+
+class RolResponse(RolBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+        orm_mode = True
+
+# --- Usuario ---
+class UsuarioBase(BaseModel):
+    nombres: str
+    apellidos: str
+    correo: str
+    rol_id: int
+    activo: bool = True
+
+class UsuarioCreate(UsuarioBase):
+    password: str
+
+class UsuarioLogin(BaseModel):
+    correo: str
+    password: str
+
+class UsuarioResponse(UsuarioBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+        orm_mode = True
+
+# --- Tokens JWT ---
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    user_id: Optional[int] = None
+    rol_id: Optional[int] = None
+    correo: Optional[str] = None
+
+
+# ==========================================
+# ESQUEMAS DE TICKETS Y VIDEOS
+# ==========================================
+
 class TicketBase(BaseModel):
     usuario_id: int
     descripcion: str = Field(..., max_length=250)
