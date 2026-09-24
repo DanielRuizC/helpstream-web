@@ -18,6 +18,8 @@ const API_URL = 'https://helpstream-api.onrender.com';
 // Endpoints centralizados de la API
 const ENDPOINTS = {
     LOGIN_LOCAL: `${API_URL}/api/auth/login/local`, // HU21: Endpoint de inicio de sesión local con JWT
+    REGISTRO: `${API_URL}/api/auth/registro`,       // Endpoint de registro con asignación de rol
+    ROLES: `${API_URL}/api/auth/roles`,             // Lista de roles del sistema
     TICKETS: `${API_URL}/tickets/`,
     VIDEOS: `${API_URL}/videos/`
 };

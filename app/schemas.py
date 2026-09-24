@@ -25,7 +25,7 @@ class RolResponse(RolBase):
 # --- Usuario ---
 class UsuarioBase(BaseModel):
     nombres: str
-    apellidos: str
+    apellidos: Optional[str] = None
     correo: str
     rol_id: int
     activo: bool = True
@@ -33,12 +33,23 @@ class UsuarioBase(BaseModel):
 class UsuarioCreate(UsuarioBase):
     password: str
 
+class UsuarioRegistro(BaseModel):
+    nombre: str
+    correo: str
+    password: str
+    rol_id: int
+
 class UsuarioLogin(BaseModel):
     correo: str
     password: str
 
-class UsuarioResponse(UsuarioBase):
+class UsuarioResponse(BaseModel):
     id: int
+    nombres: Optional[str] = None
+    apellidos: Optional[str] = None
+    correo: str
+    rol_id: int
+    activo: bool = True
 
     class Config:
         from_attributes = True

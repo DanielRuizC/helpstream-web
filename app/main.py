@@ -39,6 +39,28 @@ app.include_router(videos.router)
 app.include_router(auth.router)
 
 
+@app.on_event("startup")
+def inicializar_roles_default():
+    """Garantiza la existencia de los roles predefinidos en Supabase/PostgreSQL."""
+    from .database import SessionLocal
+    db = SessionLocal()
+    try:
+        roles_default = [
+            (1, "usuario_planta", "Usuario final de planta"),
+            (2, "analista_ti", "Analista de Soporte TI"),
+            (3, "jefe_ti", "Jefe del Área de TI"),
+        ]
+        for rol_id, nombre, desc in roles_default:
+            existe = db.query(models.Rol).filter(models.Rol.id == rol_id).first()
+            if not existe:
+                db.add(models.Rol(id=rol_id, nombre=nombre, descripcion=desc))
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to HelpStream API"}

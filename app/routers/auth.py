@@ -1,14 +1,63 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from typing import List
 from .. import models, schemas
 from ..database import get_db
-from ..auth import verify_password, create_access_token
+from ..auth import verify_password, get_password_hash, create_access_token
 
 router = APIRouter(
     prefix="/api/auth",
     tags=["Autenticación"]
 )
+
+
+@router.post("/registro", response_model=schemas.UsuarioResponse, status_code=status.HTTP_201_CREATED)
+def registrar_usuario(usuario_in: schemas.UsuarioRegistro, db: Session = Depends(get_db)):
+    """
+    Registro de nuevos usuarios definiendo su rol (Usuario final, Analista de TI, Jefe).
+    Valida unicidad de correo, valida rol_id, encripta contraseña con bcrypt e inserta en Supabase.
+    """
+    # 1. Validar que no exista un usuario registrado con el mismo correo
+    usuario_existente = db.query(models.Usuario).filter(models.Usuario.correo == usuario_in.correo).first()
+    if usuario_existente:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ya existe un usuario registrado con este correo electrónico."
+        )
+
+    # 2. Validar que el rol_id exista en la tabla roles
+    rol = db.query(models.Rol).filter(models.Rol.id == usuario_in.rol_id).first()
+    if not rol:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"El rol con ID {usuario_in.rol_id} no existe en el sistema."
+        )
+
+    # 3. Encriptar contraseña utilizando la función hash del proyecto
+    password_encriptada = get_password_hash(usuario_in.password)
+
+    # 4. Crear nuevo usuario en Supabase (PostgreSQL)
+    nuevo_usuario = models.Usuario(
+        nombres=usuario_in.nombre,
+        apellidos="",
+        correo=usuario_in.correo,
+        password_hash=password_encriptada,
+        rol_id=usuario_in.rol_id,
+        activo=True
+    )
+
+    db.add(nuevo_usuario)
+    db.commit()
+    db.refresh(nuevo_usuario)
+
+    return nuevo_usuario
+
+
+@router.get("/roles", response_model=List[schemas.RolResponse])
+def listar_roles(db: Session = Depends(get_db)):
+    """Lista todos los roles disponibles en el sistema."""
+    return db.query(models.Rol).order_by(models.Rol.id).all()
 
 
 @router.post("/login/local", response_model=schemas.Token)
