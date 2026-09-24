@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Form, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, status, Form, File, UploadFile, Request
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 import os
 import uuid
 import shutil
 from .. import crud, models, schemas
 from ..database import get_db
+from ..auth import decode_access_token
 from ..utils.ia_analyzer import analizar_ticket_ia
 
 router = APIRouter(
@@ -15,33 +16,71 @@ router = APIRouter(
 
 
 @router.post("/", response_model=schemas.TicketResponse, status_code=status.HTTP_201_CREATED)
-def create_ticket(
-    descripcion: str = Form(...),
-    usuario_id: int = Form(...),
-    archivo: UploadFile = File(None),
+async def create_ticket(
+    request: Request,
     db: Session = Depends(get_db)
 ):
+    content_type = request.headers.get("content-type", "")
+    descripcion = ""
+    usuario_id = None
+    criticidad = None
     evidencia_url = None
-    if archivo:
-        ext = os.path.splitext(archivo.filename)[1] if archivo.filename else ""
-        unique_filename = f"{uuid.uuid4()}{ext}"
-        file_path = os.path.join("static", "evidencias", unique_filename)
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(archivo.file, buffer)
-        evidencia_url = f"/static/evidencias/{unique_filename}"
-        
+
+    if "application/json" in content_type:
+        body = await request.json()
+        descripcion = body.get("descripcion", "")
+        criticidad = body.get("criticidad")
+        usuario_id = body.get("usuario_id")
+    else:
+        form = await request.form()
+        descripcion = form.get("descripcion", "")
+        uid = form.get("usuario_id")
+        if uid is not None and str(uid).isdigit():
+            usuario_id = int(uid)
+        archivo = form.get("archivo")
+        if archivo and hasattr(archivo, "filename") and archivo.filename:
+            ext = os.path.splitext(archivo.filename)[1] if archivo.filename else ""
+            unique_filename = f"{uuid.uuid4()}{ext}"
+            file_path = os.path.join("static", "evidencias", unique_filename)
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(archivo.file, buffer)
+            evidencia_url = f"/static/evidencias/{unique_filename}"
+
+    if not descripcion or len(descripcion.strip()) == 0:
+        raise HTTPException(status_code=400, detail="La descripción del ticket es obligatoria.")
+
+    # Si no se pasó usuario_id explícito, extraerlo del token Bearer
+    if not usuario_id:
+        auth_header = request.headers.get("authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1].strip()
+            payload = decode_access_token(token)
+            if payload:
+                usuario_id = payload.get("user_id") or payload.get("sub")
+
+    if not usuario_id:
+        usuario_id = 1  # Fallback por defecto si no hay usuario asignado
+    else:
+        try:
+            usuario_id = int(usuario_id)
+        except (ValueError, TypeError):
+            usuario_id = 1
+
     ia_result = analizar_ticket_ia(descripcion)
-    
+    # Si el usuario seleccionó una criticidad específica en el modal, se respeta; sino, se usa IA
+    if not criticidad:
+        criticidad = ia_result["criticidad"]
+
     db_ticket = models.Ticket(
         usuario_id=usuario_id,
         descripcion=descripcion,
         evidencia_url=evidencia_url,
-        criticidad=ia_result["criticidad"]
+        criticidad=criticidad
     )
     db.add(db_ticket)
     db.commit()
     db.refresh(db_ticket)
-    
+
     db_ticket.palabras_clave = ia_result["palabras_clave"]
     return db_ticket
 

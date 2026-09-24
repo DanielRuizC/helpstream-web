@@ -126,6 +126,108 @@ function inicializarLogin(loginForm) {
     });
 }
 
+// ==========================================
+// HU11: Creación Rápida de Tickets
+// ==========================================
+function inicializarFormNuevoTicket() {
+    const formNuevoTicket = document.getElementById('formNuevoTicket');
+    if (!formNuevoTicket) return;
+
+    formNuevoTicket.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const descripcionInput = document.getElementById('nuevoTicketDescripcion');
+        const criticidadInput = document.getElementById('nuevoTicketCriticidad');
+        const alertBox = document.getElementById('nuevoTicketAlert');
+        const btnSubmit = document.getElementById('btnRegistrarTicket');
+
+        const descripcion = descripcionInput ? descripcionInput.value.trim() : '';
+        const criticidad = criticidadInput ? criticidadInput.value : 'Media';
+
+        if (!descripcion) {
+            if (alertBox) {
+                alertBox.textContent = 'Por favor ingrese la descripción del incidente.';
+                alertBox.classList.remove('d-none');
+            }
+            return;
+        }
+
+        if (alertBox) {
+            alertBox.classList.add('d-none');
+            alertBox.textContent = '';
+        }
+
+        // Estado visual del botón durante la creación
+        const originalBtnContent = btnSubmit ? btnSubmit.innerHTML : 'Registrar Ticket';
+        if (btnSubmit) {
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Registrando...';
+        }
+
+        try {
+            const token = localStorage.getItem('helpstream_token');
+            const response = await fetch(ENDPOINTS.TICKETS, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify({
+                    descripcion: descripcion,
+                    criticidad: criticidad
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Error al registrar el ticket.');
+            }
+
+            // Éxito: cerrar modal, limpiar formulario y notificar
+            const modalEl = document.getElementById('modalNuevoTicket');
+            if (modalEl) {
+                const bsModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                bsModal.hide();
+            }
+
+            formNuevoTicket.reset();
+
+            // Mostrar alerta temporal de éxito
+            mostrarAlertaExito('¡Ticket registrado exitosamente!');
+
+            // Recargar tickets y KPIs
+            cargarTickets();
+
+        } catch (error) {
+            if (alertBox) {
+                alertBox.textContent = error.message || 'Error al conectar con el servidor.';
+                alertBox.classList.remove('d-none');
+            } else {
+                alert(error.message || 'Error al registrar el ticket.');
+            }
+        } finally {
+            if (btnSubmit) {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = originalBtnContent;
+            }
+        }
+    });
+}
+
+function mostrarAlertaExito(mensaje) {
+    const alertEl = document.getElementById('dashboardAlert');
+    const msgEl = document.getElementById('dashboardAlertMsg');
+    if (alertEl && msgEl) {
+        msgEl.textContent = mensaje;
+        alertEl.classList.remove('d-none');
+        setTimeout(() => {
+            alertEl.classList.add('d-none');
+        }, 5000);
+    } else {
+        alert(mensaje);
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     // Si estamos en login.html
     const loginForm = document.getElementById('loginForm');
@@ -141,6 +243,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     cargarTickets();
     inicializarSidebar();
+    inicializarFormNuevoTicket();
 });
 
 // Control del Menú Lateral (Sidebar Colapsable)
