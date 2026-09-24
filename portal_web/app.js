@@ -1,3 +1,17 @@
+// ==========================================
+// Protección de Rutas (HU21)
+// Redirige a login.html si no existe helpstream_token en localStorage
+// ==========================================
+(function protegerRuta() {
+    const token = localStorage.getItem('helpstream_token');
+    const path = window.location.pathname;
+    const esLogin = path.endsWith('login.html') || path.endsWith('/login');
+
+    if (!token && !esLogin) {
+        window.location.replace('login.html');
+    }
+})();
+
 // URL base de producción en Render
 const API_URL = 'https://helpstream-api.onrender.com';
 
@@ -46,8 +60,83 @@ async function iniciarSesion(correo, password) {
     }
 }
 
+// Cerrar sesión y limpiar credenciales
+function cerrarSesion() {
+    localStorage.removeItem('helpstream_token');
+    localStorage.removeItem('helpstream_token_type');
+    window.location.replace('login.html');
+}
+
+// Conectar evento submit del formulario de login.html
+function inicializarLogin(loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const correoInput = document.getElementById('loginCorreo');
+        const passwordInput = document.getElementById('loginPassword');
+        const alertBox = document.getElementById('loginAlert');
+        const btnSubmit = document.getElementById('btnLogin');
+
+        const correo = correoInput ? correoInput.value.trim() : '';
+        const password = passwordInput ? passwordInput.value : '';
+
+        if (!correo || !password) {
+            if (alertBox) {
+                alertBox.textContent = 'Por favor ingresa tu correo y contraseña.';
+                alertBox.classList.remove('d-none');
+            }
+            return;
+        }
+
+        if (alertBox) {
+            alertBox.classList.add('d-none');
+            alertBox.textContent = '';
+        }
+
+        // Estado visual del botón durante la autenticación
+        const originalBtnContent = btnSubmit ? btnSubmit.innerHTML : 'Ingresar';
+        if (btnSubmit) {
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Ingresando...';
+        }
+
+        try {
+            const data = await iniciarSesion(correo, password);
+            if (data && data.access_token) {
+                // Redirigir a index.html tras inicio de sesión exitoso
+                window.location.href = 'index.html';
+            } else {
+                throw new Error('No se recibió el token de autenticación del servidor.');
+            }
+        } catch (error) {
+            if (alertBox) {
+                alertBox.textContent = error.message || 'Error al iniciar sesión. Verifica tus credenciales.';
+                alertBox.classList.remove('d-none');
+            } else {
+                alert(error.message || 'Error al iniciar sesión.');
+            }
+        } finally {
+            if (btnSubmit) {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = originalBtnContent;
+            }
+        }
+    });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-    modalInstance = new bootstrap.Modal(document.getElementById('gestionarModal'));
+    // Si estamos en login.html
+    const loginForm = document.getElementById('loginForm');
+    if (loginForm) {
+        inicializarLogin(loginForm);
+        return;
+    }
+
+    // Inicialización del Dashboard (index.html)
+    const modalEl = document.getElementById('gestionarModal');
+    if (modalEl) {
+        modalInstance = new bootstrap.Modal(modalEl);
+    }
     cargarTickets();
     inicializarSidebar();
 });

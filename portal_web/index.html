@@ -11,6 +11,12 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
     <!-- Custom Corporate Styles -->
     <link href="style.css" rel="stylesheet">
+    <!-- Protección de ruta (HU21): Redirigir a login si no hay token -->
+    <script>
+        if (!localStorage.getItem('helpstream_token')) {
+            window.location.replace('login.html');
+        }
+    </script>
 </head>
 
 <body>
@@ -50,14 +56,17 @@
                 <h4 class="mb-0 text-primary fw-bold">HelpStream</h4>
                 <span class="badge bg-primary ms-3">Soporte TI</span>
             </div>
-            <div class="user-card">
+            <div class="user-card d-flex align-items-center gap-2">
                 <div class="user-info text-end">
-                    <p class="name">Daniel Ruiz</p>
-                    <p class="role">- Analista TI</p>
+                    <p class="name mb-0">Daniel Ruiz</p>
+                    <p class="role mb-0">- Analista TI</p>
                 </div>
                 <div class="user-avatar">
                     DR
                 </div>
+                <button class="btn btn-outline-danger btn-sm rounded-pill ms-2 px-3" onclick="cerrarSesion()" title="Cerrar sesión">
+                    <i class="bi bi-box-arrow-right"></i> Salir
+                </button>
             </div>
         </div>
 
