@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HelpStream | Registrar Usuario</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Custom Corporate Styles -->
+    <link href="style.css" rel="stylesheet">
+    <!-- Protección de ruta: Redirigir a login si no hay token -->
+    <script>
+        if (!localStorage.getItem('helpstream_token')) {
+            window.location.replace('login.html');
+        }
+    </script>
+</head>
+
+<body>
+    <!-- Backdrop para menú móvil -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <!-- Sidebar Colapsable -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-layers-fill text-info"></i>
+                <span class="fw-bold tracking-wide">Navegación</span>
+            </div>
+            <button class="btn btn-link text-white-50 p-0 d-lg-none" id="sidebarCloseBtn" aria-label="Cerrar menú">
+                <i class="bi bi-x-lg fs-5"></i>
+            </button>
+        </div>
+        <div class="mt-4">
+            <a href="index.html" class="nav-link text-decoration-none" id="nav-dashboard">
+                <i class="bi bi-grid-1x2-fill"></i> Dashboard Principal
+            </a>
+            <a href="index.html#knowledge-base" class="nav-link text-decoration-none" id="nav-kb">
+                <i class="bi bi-camera-video-fill"></i> Base de Conocimiento
+            </a>
+
+            <div class="sidebar-divider my-3 border-top border-white border-opacity-10"></div>
+            <div class="px-3 text-uppercase text-white-50 small fw-bold mb-2" style="font-size: 0.7rem; letter-spacing: 0.5px;">Gestión de Usuarios</div>
+
+            <a href="registrar_usuario.html" class="nav-link active text-decoration-none" id="nav-reg-user">
+                <i class="bi bi-person-plus-fill"></i> Registrar Usuario
+            </a>
+            <a href="editar_usuario.html" class="nav-link text-decoration-none" id="nav-edit-user">
+                <i class="bi bi-person-gear"></i> Editar Usuario
+            </a>
+            <a href="directorio_usuarios.html" class="nav-link text-decoration-none" id="nav-dir-user">
+                <i class="bi bi-people-fill"></i> Directorio de Usuarios
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Wrapper -->
+    <div class="main-wrapper">
+        <!-- Top Header -->
+        <div class="top-header">
+            <div class="d-flex align-items-center">
+                <button class="sidebar-toggle-btn me-3" id="sidebarToggle" type="button" aria-label="Alternar menú lateral" title="Menú lateral">
+                    <i class="bi bi-list fs-3"></i>
+                </button>
+                <h4 class="mb-0 text-primary fw-bold">HelpStream</h4>
+                <span class="badge bg-primary ms-3">Soporte TI</span>
+            </div>
+            <div class="user-card d-flex align-items-center gap-2">
+                <div class="user-info text-end">
+                    <p class="name mb-0">Daniel Ruiz</p>
+                    <p class="role mb-0">- Analista TI</p>
+                </div>
+                <div class="user-avatar">
+                    DR
+                </div>
+                <button class="btn btn-outline-danger btn-sm rounded-pill ms-2 px-3" onclick="cerrarSesion()" title="Cerrar sesión">
+                    <i class="bi bi-box-arrow-right"></i> Salir
+                </button>
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="content-area">
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <div>
+                    <h4 class="fw-bold mb-1">Registrar Nuevo Usuario</h4>
+                    <p class="text-muted small mb-0">Crea una cuenta en el sistema y asigna el rol correspondiente.</p>
+                </div>
+                <a href="directorio_usuarios.html" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                    <i class="bi bi-people me-1"></i> Ver Directorio
+                </a>
+            </div>
+
+            <div class="card border-0 shadow-sm" style="border-radius: 12px; max-width: 650px;">
+                <div class="card-body p-4">
+                    <div id="regUserAlert" class="alert alert-danger d-none py-2 px-3 small" role="alert"></div>
+
+                    <form id="formRegistroUsuario" novalidate>
+                        <!-- Nombre Completo -->
+                        <div class="mb-3">
+                            <label for="regNombre" class="form-label small fw-bold text-muted text-uppercase">Nombre Completo</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-muted"><i class="bi bi-person-fill"></i></span>
+                                <input type="text" class="form-control" id="regNombre" placeholder="Ej: Carlos Mendoza" required>
+                            </div>
+                        </div>
+
+                        <!-- Correo Electrónico -->
+                        <div class="mb-3">
+                            <label for="regCorreo" class="form-label small fw-bold text-muted text-uppercase">Correo Electrónico</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-muted"><i class="bi bi-envelope-fill"></i></span>
+                                <input type="email" class="form-control" id="regCorreo" placeholder="cmendoza@empresa.com" required>
+                            </div>
+                        </div>
+
+                        <!-- Contraseña Temporal -->
+                        <div class="mb-3">
+                            <label for="regPassword" class="form-label small fw-bold text-muted text-uppercase">Contraseña Temporal</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-muted"><i class="bi bi-key-fill"></i></span>
+                                <input type="password" class="form-control" id="regPassword" placeholder="••••••••" required>
+                            </div>
+                            <div class="form-text text-muted small">El usuario podrá cambiarla posteriormente.</div>
+                        </div>
+
+                        <!-- Rol del Sistema -->
+                        <div class="mb-4">
+                            <label for="regRol" class="form-label small fw-bold text-muted text-uppercase">Rol Asignado</label>
+                            <select class="form-select" id="regRol" required>
+                                <option value="1">1 - Usuario Planta (Usuario final)</option>
+                                <option value="2">2 - Analista TI (Soporte técnico)</option>
+                                <option value="3">3 - Jefe TI (Administrador / Jefatura)</option>
+                            </select>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+                            <button type="reset" class="btn btn-light px-3">Limpiar</button>
+                            <button type="submit" id="btnSubmitRegistro" class="btn btn-primary px-4 fw-bold">
+                                <i class="bi bi-person-check-fill me-2"></i> Registrar Usuario
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Lógica de la aplicación -->
+    <script src="app.js"></script>
+</body>
+
+</html>

@@ -39,6 +39,13 @@ class UsuarioRegistro(BaseModel):
     password: str
     rol_id: int
 
+class UsuarioUpdate(BaseModel):
+    nombres: Optional[str] = None
+    apellidos: Optional[str] = None
+    correo: Optional[str] = None
+    rol_id: Optional[int] = None
+    activo: Optional[bool] = None
+
 class UsuarioLogin(BaseModel):
     correo: str
     password: str

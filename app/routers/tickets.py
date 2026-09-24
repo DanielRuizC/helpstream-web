@@ -31,6 +31,13 @@ async def create_ticket(
         descripcion = body.get("descripcion", "")
         criticidad = body.get("criticidad")
         usuario_id = body.get("usuario_id")
+        correo = body.get("correo")
+        sede = body.get("sede")
+        piso = body.get("piso")
+        if correo and not usuario_id:
+            u = db.query(models.Usuario).filter(models.Usuario.correo == correo.strip()).first()
+            if u:
+                usuario_id = u.id
     else:
         form = await request.form()
         descripcion = form.get("descripcion", "")

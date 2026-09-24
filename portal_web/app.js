@@ -20,6 +20,7 @@ const ENDPOINTS = {
     LOGIN_LOCAL: `${API_URL}/api/auth/login/local`, // HU21: Endpoint de inicio de sesión local con JWT
     REGISTRO: `${API_URL}/api/auth/registro`,       // Endpoint de registro con asignación de rol
     ROLES: `${API_URL}/api/auth/roles`,             // Lista de roles del sistema
+    USUARIOS: `${API_URL}/api/auth/usuarios`,       // Lista y gestión de usuarios
     TICKETS: `${API_URL}/tickets/`,
     VIDEOS: `${API_URL}/videos/`
 };
@@ -127,22 +128,65 @@ function inicializarLogin(loginForm) {
 }
 
 // ==========================================
-// HU11: Creación Rápida de Tickets
+// HU11: Creación Rápida de Tickets (con Sede y Piso)
 // ==========================================
 function inicializarFormNuevoTicket() {
     const formNuevoTicket = document.getElementById('formNuevoTicket');
     if (!formNuevoTicket) return;
 
+    const sedeSelect = document.getElementById('nuevoTicketSede');
+    const pisoSelect = document.getElementById('nuevoTicketPiso');
+
+    // Event listener dinámico: Piso solo se habilita si la sede es "San Isidro"
+    if (sedeSelect && pisoSelect) {
+        sedeSelect.addEventListener('change', () => {
+            if (sedeSelect.value === 'San Isidro') {
+                pisoSelect.disabled = false;
+            } else {
+                pisoSelect.disabled = true;
+                pisoSelect.value = '';
+            }
+        });
+    }
+
     formNuevoTicket.addEventListener('submit', async (e) => {
         e.preventDefault();
 
+        const correoInput = document.getElementById('nuevoTicketCorreo');
         const descripcionInput = document.getElementById('nuevoTicketDescripcion');
         const criticidadInput = document.getElementById('nuevoTicketCriticidad');
         const alertBox = document.getElementById('nuevoTicketAlert');
         const btnSubmit = document.getElementById('btnRegistrarTicket');
 
-        const descripcion = descripcionInput ? descripcionInput.value.trim() : '';
+        const correo = correoInput ? correoInput.value.trim() : '';
+        const sede = sedeSelect ? sedeSelect.value : '';
+        const piso = (pisoSelect && !pisoSelect.disabled) ? pisoSelect.value : '';
         const criticidad = criticidadInput ? criticidadInput.value : 'Media';
+        const descripcion = descripcionInput ? descripcionInput.value.trim() : '';
+
+        if (!correo) {
+            if (alertBox) {
+                alertBox.textContent = 'Por favor ingrese el correo del solicitante.';
+                alertBox.classList.remove('d-none');
+            }
+            return;
+        }
+
+        if (!sede) {
+            if (alertBox) {
+                alertBox.textContent = 'Por favor seleccione la sede del incidente.';
+                alertBox.classList.remove('d-none');
+            }
+            return;
+        }
+
+        if (sede === 'San Isidro' && !piso) {
+            if (alertBox) {
+                alertBox.textContent = 'Por favor seleccione el piso para la sede San Isidro.';
+                alertBox.classList.remove('d-none');
+            }
+            return;
+        }
 
         if (!descripcion) {
             if (alertBox) {
@@ -173,6 +217,9 @@ function inicializarFormNuevoTicket() {
                     'Authorization': 'Bearer ' + token
                 },
                 body: JSON.stringify({
+                    correo: correo,
+                    sede: sede,
+                    piso: piso,
                     descripcion: descripcion,
                     criticidad: criticidad
                 })
@@ -191,6 +238,10 @@ function inicializarFormNuevoTicket() {
             }
 
             formNuevoTicket.reset();
+            if (pisoSelect) {
+                pisoSelect.disabled = true;
+                pisoSelect.value = '';
+            }
 
             // Mostrar alerta temporal de éxito
             mostrarAlertaExito('¡Ticket registrado exitosamente!');
@@ -228,6 +279,222 @@ function mostrarAlertaExito(mensaje) {
     }
 }
 
+// ==========================================
+// MÓDULO DE GESTIÓN DE USUARIOS
+// ==========================================
+function inicializarModuloUsuarios() {
+    // 1. Formulario Registrar Usuario (registrar_usuario.html)
+    const formRegistro = document.getElementById('formRegistroUsuario');
+    if (formRegistro) {
+        formRegistro.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const alertBox = document.getElementById('regUserAlert');
+            const btnSubmit = document.getElementById('btnSubmitRegistro');
+
+            const nombre = document.getElementById('regNombre').value.trim();
+            const correo = document.getElementById('regCorreo').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const rol_id = parseInt(document.getElementById('regRol').value, 10);
+
+            if (alertBox) {
+                alertBox.classList.add('d-none');
+            }
+            if (btnSubmit) {
+                btnSubmit.disabled = true;
+                btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Registrando...';
+            }
+
+            try {
+                const response = await fetch(ENDPOINTS.REGISTRO, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nombre, correo, password, rol_id })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.detail || 'Error al registrar el usuario.');
+                }
+
+                if (alertBox) {
+                    alertBox.className = 'alert alert-success py-2 px-3 small';
+                    alertBox.textContent = `¡Usuario "${nombre}" registrado con éxito!`;
+                    alertBox.classList.remove('d-none');
+                }
+                formRegistro.reset();
+            } catch (err) {
+                if (alertBox) {
+                    alertBox.className = 'alert alert-danger py-2 px-3 small';
+                    alertBox.textContent = err.message;
+                    alertBox.classList.remove('d-none');
+                }
+            } finally {
+                if (btnSubmit) {
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerHTML = '<i class="bi bi-person-check-fill me-2"></i> Registrar Usuario';
+                }
+            }
+        });
+    }
+
+    // 2. Búsqueda y Edición de Usuario (editar_usuario.html)
+    const btnBuscar = document.getElementById('btnBuscarUsuario');
+    const inputBuscar = document.getElementById('inputBuscarCorreo');
+    const formEditar = document.getElementById('formEditarUsuario');
+    const contenedorFormEditar = document.getElementById('contenedorFormEditar');
+    const alertEdit = document.getElementById('editUserAlert');
+
+    async function buscarUsuario() {
+        const correo = inputBuscar ? inputBuscar.value.trim() : '';
+        if (!correo) return;
+
+        if (alertEdit) alertEdit.classList.add('d-none');
+
+        try {
+            const response = await fetch(`${ENDPOINTS.USUARIOS}/buscar?correo=${encodeURIComponent(correo)}`);
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.detail || 'Usuario no encontrado.');
+            }
+
+            const usuario = await response.json();
+
+            // Cargar datos en el formulario
+            document.getElementById('editUserId').value = usuario.id;
+            document.getElementById('editNombre').value = usuario.nombres || '';
+            document.getElementById('editCorreo').value = usuario.correo || '';
+            document.getElementById('editRol').value = usuario.rol_id;
+            document.getElementById('editActivo').checked = usuario.activo;
+
+            if (contenedorFormEditar) {
+                contenedorFormEditar.classList.remove('d-none');
+            }
+        } catch (err) {
+            if (contenedorFormEditar) {
+                contenedorFormEditar.classList.add('d-none');
+            }
+            if (alertEdit) {
+                alertEdit.className = 'alert alert-danger py-2 px-3 small';
+                alertEdit.textContent = err.message;
+                alertEdit.classList.remove('d-none');
+            }
+        }
+    }
+
+    if (btnBuscar) {
+        btnBuscar.addEventListener('click', buscarUsuario);
+    }
+    if (inputBuscar) {
+        inputBuscar.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                buscarUsuario();
+            }
+        });
+    }
+
+    if (formEditar) {
+        formEditar.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userId = document.getElementById('editUserId').value;
+            const nombres = document.getElementById('editNombre').value.trim();
+            const correo = document.getElementById('editCorreo').value.trim();
+            const rol_id = parseInt(document.getElementById('editRol').value, 10);
+            const activo = document.getElementById('editActivo').checked;
+            const btnGuardar = document.getElementById('btnGuardarEdicion');
+
+            if (btnGuardar) {
+                btnGuardar.disabled = true;
+                btnGuardar.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Guardando...';
+            }
+
+            try {
+                const response = await fetch(`${ENDPOINTS.USUARIOS}/${userId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nombres, correo, rol_id, activo })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.detail || 'Error al guardar cambios.');
+                }
+
+                if (alertEdit) {
+                    alertEdit.className = 'alert alert-success py-2 px-3 small';
+                    alertEdit.textContent = '¡Datos de usuario actualizados correctamente!';
+                    alertEdit.classList.remove('d-none');
+                }
+            } catch (err) {
+                if (alertEdit) {
+                    alertEdit.className = 'alert alert-danger py-2 px-3 small';
+                    alertEdit.textContent = err.message;
+                    alertEdit.classList.remove('d-none');
+                }
+            } finally {
+                if (btnGuardar) {
+                    btnGuardar.disabled = false;
+                    btnGuardar.innerHTML = '<i class="bi bi-save me-1"></i> Guardar Cambios';
+                }
+            }
+        });
+    }
+
+    // 3. Directorio de Usuarios (directorio_usuarios.html)
+    const tablaDirectorio = document.getElementById('tablaDirectorioBody');
+    if (tablaDirectorio) {
+        cargarDirectorioUsuarios();
+    }
+}
+
+async function cargarDirectorioUsuarios() {
+    const tbody = document.getElementById('tablaDirectorioBody');
+    if (!tbody) return;
+
+    try {
+        const response = await fetch(ENDPOINTS.USUARIOS);
+        if (!response.ok) throw new Error('Error al cargar la lista de usuarios.');
+        const usuarios = await response.json();
+
+        const rolesMap = {
+            1: 'Usuario Planta',
+            2: 'Analista TI',
+            3: 'Jefe TI'
+        };
+
+        tbody.innerHTML = '';
+        if (usuarios.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No hay usuarios registrados.</td></tr>';
+            return;
+        }
+
+        usuarios.forEach(u => {
+            const tr = document.createElement('tr');
+            const rolNombre = rolesMap[u.rol_id] || `Rol ${u.rol_id}`;
+            const estadoBadge = u.activo 
+                ? '<span class="badge bg-success">Activo</span>' 
+                : '<span class="badge bg-secondary">Inactivo</span>';
+
+            tr.innerHTML = `
+                <td class="fw-bold text-muted">#${u.id}</td>
+                <td class="fw-semibold">${u.nombres || '-'}</td>
+                <td>${u.correo}</td>
+                <td><span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1">${rolNombre}</span></td>
+                <td>${estadoBadge}</td>
+                <td>
+                    <a href="editar_usuario.html?correo=${encodeURIComponent(u.correo)}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                        <i class="bi bi-pencil-square"></i> Editar
+                    </a>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (err) {
+        console.error(err);
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Error al cargar usuarios desde el servidor.</td></tr>';
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     // Si estamos en login.html
     const loginForm = document.getElementById('loginForm');
@@ -236,14 +503,34 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
     }
 
+    // Inicialización del Menú Lateral en todas las páginas
+    inicializarSidebar();
+
     // Inicialización del Dashboard (index.html)
     const modalEl = document.getElementById('gestionarModal');
     if (modalEl) {
         modalInstance = new bootstrap.Modal(modalEl);
     }
-    cargarTickets();
-    inicializarSidebar();
+    const ticketsTable = document.getElementById('ticketsTable');
+    if (ticketsTable) {
+        cargarTickets();
+    }
+
+    // Inicializar modal de nuevo ticket si está presente
     inicializarFormNuevoTicket();
+
+    // Inicializar módulo de usuarios si corresponde
+    inicializarModuloUsuarios();
+
+    // Pre-llenar búsqueda si viene parámetro correo en la URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const correoParam = urlParams.get('correo');
+    const inputBuscar = document.getElementById('inputBuscarCorreo');
+    const btnBuscar = document.getElementById('btnBuscarUsuario');
+    if (correoParam && inputBuscar && btnBuscar) {
+        inputBuscar.value = correoParam;
+        btnBuscar.click();
+    }
 });
 
 // Control del Menú Lateral (Sidebar Colapsable)

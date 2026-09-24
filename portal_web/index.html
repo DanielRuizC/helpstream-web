@@ -35,12 +35,25 @@
             </button>
         </div>
         <div class="mt-4">
-            <a href="#" class="nav-link active text-decoration-none" id="nav-dashboard"
+            <a href="index.html" class="nav-link active text-decoration-none" id="nav-dashboard"
                 onclick="switchView('dashboard')">
                 <i class="bi bi-grid-1x2-fill"></i> Dashboard Principal
             </a>
             <a href="#" class="nav-link text-decoration-none" id="nav-kb" onclick="switchView('knowledge-base')">
                 <i class="bi bi-camera-video-fill"></i> Base de Conocimiento
+            </a>
+
+            <div class="sidebar-divider my-3 border-top border-white border-opacity-10"></div>
+            <div class="px-3 text-uppercase text-white-50 small fw-bold mb-2" style="font-size: 0.7rem; letter-spacing: 0.5px;">Gestión de Usuarios</div>
+
+            <a href="registrar_usuario.html" class="nav-link text-decoration-none" id="nav-reg-user">
+                <i class="bi bi-person-plus-fill"></i> Registrar Usuario
+            </a>
+            <a href="editar_usuario.html" class="nav-link text-decoration-none" id="nav-edit-user">
+                <i class="bi bi-person-gear"></i> Editar Usuario
+            </a>
+            <a href="directorio_usuarios.html" class="nav-link text-decoration-none" id="nav-dir-user">
+                <i class="bi bi-people-fill"></i> Directorio de Usuarios
             </a>
         </div>
     </div>
@@ -84,19 +97,19 @@
                     <button type="button" class="btn-close" onclick="document.getElementById('dashboardAlert').classList.add('d-none')" aria-label="Close"></button>
                 </div>
 
-                <!-- KPI Cards y Botón de Creación Rápida (HU11) -->
-                <div class="row g-4 mb-4">
+                <!-- KPI Cards y Botón de Creación Rápida (HU11 - Compacto) -->
+                <div class="row g-3 mb-4">
                     <!-- Tarjeta 1: Abiertos vs Resueltos -->
                     <div class="col-md-4">
-                        <div class="kpi-card h-100">
-                            <div class="kpi-title">Estado de Tickets</div>
-                            <div class="row align-items-center text-center mt-2">
+                        <div class="kpi-card py-3">
+                            <div class="kpi-title mb-1">Estado de Tickets</div>
+                            <div class="row align-items-center text-center mt-1">
                                 <div class="col-6 border-end">
-                                    <div class="fs-3 fw-bold text-primary" id="kpi-abiertos">0</div>
+                                    <div class="fs-4 fw-bold text-primary" id="kpi-abiertos">0</div>
                                     <div class="kpi-subtext mt-0">Abiertos</div>
                                 </div>
                                 <div class="col-6">
-                                    <div class="fs-3 fw-bold text-success" id="kpi-resueltos">0</div>
+                                    <div class="fs-4 fw-bold text-success" id="kpi-resueltos">0</div>
                                     <div class="kpi-subtext mt-0">Resueltos</div>
                                 </div>
                             </div>
@@ -104,17 +117,19 @@
                     </div>
                     <!-- Tarjeta 2: Tickets Hoy -->
                     <div class="col-md-4">
-                        <div class="kpi-card h-100">
-                            <div class="kpi-title">Nuevos Hoy</div>
-                            <div class="d-flex align-items-end gap-3 mt-2">
-                                <div class="kpi-value text-info" id="kpi-hoy">0</div>
+                        <div class="kpi-card py-3">
+                            <div class="kpi-title mb-1">Nuevos Hoy</div>
+                            <div class="d-flex align-items-end gap-3 mt-1">
+                                <div class="fs-4 fw-bold text-info" id="kpi-hoy">0</div>
                                 <div class="kpi-subtext mb-1"><i class="bi bi-calendar-event"></i> Últimas 24h</div>
                             </div>
                         </div>
                     </div>
-                    <!-- Tarjeta 3: Botón Nuevo Ticket Rápido -->
-                    <div class="col-md-4">
-                        <button class="btn btn-primary btn-lg w-100 h-100 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoTicket">➕ Nuevo Ticket Rápido</button>
+                    <!-- Tarjeta 3: Botón Nuevo Ticket Rápido Compacto -->
+                    <div class="col-md-4 d-flex align-items-center">
+                        <button class="btn btn-primary w-100 shadow-sm py-3 fw-bold" data-bs-toggle="modal" data-bs-target="#modalNuevoTicket">
+                            <i class="bi bi-plus-circle-fill me-2"></i> Nuevo Ticket Rápido
+                        </button>
                     </div>
                 </div>
 
@@ -303,10 +318,39 @@
                     <div class="modal-body p-4">
                         <div id="nuevoTicketAlert" class="alert alert-danger d-none py-2 px-3 small" role="alert"></div>
 
-                        <!-- Descripción del Incidente -->
+                        <!-- Correo del Solicitante -->
                         <div class="mb-3">
-                            <label for="nuevoTicketDescripcion" class="form-label fw-bold text-muted small text-uppercase">Descripción del incidente</label>
-                            <textarea class="form-control" id="nuevoTicketDescripcion" rows="4" placeholder="Describe detalladamente el problema o solicitud..." required></textarea>
+                            <label for="nuevoTicketCorreo" class="form-label fw-bold text-muted small text-uppercase">Correo del solicitante</label>
+                            <input type="email" class="form-control" id="nuevoTicketCorreo" placeholder="solicitante@empresa.com" required>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <!-- Sede -->
+                            <div class="col-md-6">
+                                <label for="nuevoTicketSede" class="form-label fw-bold text-muted small text-uppercase">Sede</label>
+                                <select class="form-select" id="nuevoTicketSede" required>
+                                    <option value="" disabled selected>Seleccione sede...</option>
+                                    <option value="San Isidro">San Isidro</option>
+                                    <option value="Chancay">Chancay</option>
+                                    <option value="Ilo">Ilo</option>
+                                    <option value="Pisco">Pisco</option>
+                                    <option value="Coishco">Coishco</option>
+                                </select>
+                            </div>
+
+                            <!-- Piso (solo activo si sede es San Isidro) -->
+                            <div class="col-md-6">
+                                <label for="nuevoTicketPiso" class="form-label fw-bold text-muted small text-uppercase">Piso</label>
+                                <select class="form-select" id="nuevoTicketPiso" disabled>
+                                    <option value="" selected>Seleccione piso...</option>
+                                    <option value="3er piso - Gerencia General">3er piso - Gerencia General</option>
+                                    <option value="3er piso - Gerencia Flota">3er piso - Gerencia Flota</option>
+                                    <option value="3er piso - Gerencia Operaciones">3er piso - Gerencia Operaciones</option>
+                                    <option value="4to piso - Gerencia de Administración y Finanzas">4to piso - Gerencia de Administración y Finanzas</option>
+                                    <option value="5to piso - Gerencia de Recursos Humanos">5to piso - Gerencia de Recursos Humanos</option>
+                                </select>
+                                <div class="form-text text-muted small" style="font-size: 0.72rem;">Habilitado solo para sede San Isidro.</div>
+                            </div>
                         </div>
 
                         <!-- Criticidad / Urgencia -->
@@ -317,6 +361,12 @@
                                 <option value="Media" selected>Media</option>
                                 <option value="Baja">Baja</option>
                             </select>
+                        </div>
+
+                        <!-- Descripción del Incidente -->
+                        <div class="mb-3">
+                            <label for="nuevoTicketDescripcion" class="form-label fw-bold text-muted small text-uppercase">Descripción del incidente</label>
+                            <textarea class="form-control" id="nuevoTicketDescripcion" rows="4" placeholder="Describe detalladamente el problema o solicitud..." required></textarea>
                         </div>
                     </div>
                     <div class="modal-footer border-0 pb-4 px-4">

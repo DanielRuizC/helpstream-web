@@ -60,6 +60,62 @@ def listar_roles(db: Session = Depends(get_db)):
     return db.query(models.Rol).order_by(models.Rol.id).all()
 
 
+@router.get("/usuarios", response_model=List[schemas.UsuarioResponse])
+def listar_usuarios(db: Session = Depends(get_db)):
+    """Lista todos los usuarios registrados."""
+    return db.query(models.Usuario).order_by(models.Usuario.id).all()
+
+
+@router.get("/usuarios/buscar", response_model=schemas.UsuarioResponse)
+def buscar_usuario_por_correo(correo: str, db: Session = Depends(get_db)):
+    """Busca un usuario por su correo electrónico."""
+    usuario = db.query(models.Usuario).filter(models.Usuario.correo == correo.strip()).first()
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No se encontró ningún usuario con el correo: {correo}"
+        )
+    return usuario
+
+
+@router.put("/usuarios/{usuario_id}", response_model=schemas.UsuarioResponse)
+def actualizar_usuario(usuario_id: int, datos: schemas.UsuarioUpdate, db: Session = Depends(get_db)):
+    """Actualiza datos de un usuario existente."""
+    usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Usuario con ID {usuario_id} no encontrado."
+        )
+
+    if datos.nombres is not None:
+        usuario.nombres = datos.nombres
+    if datos.apellidos is not None:
+        usuario.apellidos = datos.apellidos
+    if datos.correo is not None:
+        existente = db.query(models.Usuario).filter(models.Usuario.correo == datos.correo, models.Usuario.id != usuario_id).first()
+        if existente:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El correo ya pertenece a otro usuario registrado."
+            )
+        usuario.correo = datos.correo
+    if datos.rol_id is not None:
+        rol = db.query(models.Rol).filter(models.Rol.id == datos.rol_id).first()
+        if not rol:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"El rol con ID {datos.rol_id} no existe."
+            )
+        usuario.rol_id = datos.rol_id
+    if datos.activo is not None:
+        usuario.activo = datos.activo
+
+    db.commit()
+    db.refresh(usuario)
+    return usuario
+
+
 @router.post("/login/local", response_model=schemas.Token)
 def login_local(credenciales: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
 
