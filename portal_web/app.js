@@ -1,6 +1,50 @@
-const API_URL = 'http://127.0.0.1:8000';
+// URL base de producción en Render
+const API_URL = 'https://helpstream-api.onrender.com';
+
+// Endpoints centralizados de la API
+const ENDPOINTS = {
+    LOGIN_LOCAL: `${API_URL}/api/auth/login/local`, // HU21: Endpoint de inicio de sesión local con JWT
+    TICKETS: `${API_URL}/tickets/`,
+    VIDEOS: `${API_URL}/videos/`
+};
+
 let modalInstance = null;
 let allTickets = []; // Global state for client-side filtering
+
+// ==========================================
+// HU21: Flujo de Autenticación / Inicio de Sesión
+// Endpoint: https://helpstream-api.onrender.com/api/auth/login/local
+// ==========================================
+async function iniciarSesion(correo, password) {
+    try {
+        const formData = new URLSearchParams();
+        formData.append('username', correo);
+        formData.append('password', password);
+
+        const response = await fetch(ENDPOINTS.LOGIN_LOCAL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Correo o contraseña incorrectos');
+        }
+
+        const data = await response.json();
+        if (data.access_token) {
+            localStorage.setItem('helpstream_token', data.access_token);
+            localStorage.setItem('helpstream_token_type', data.token_type || 'bearer');
+        }
+        return data;
+    } catch (error) {
+        console.error('Error en autenticación HU21:', error);
+        throw error;
+    }
+}
 
 document.addEventListener("DOMContentLoaded", () => {
     modalInstance = new bootstrap.Modal(document.getElementById('gestionarModal'));
@@ -201,8 +245,14 @@ function renderTickets(tickets) {
         }
 
         // Evidencia
+        let evidenciaHref = '#';
+        if (ticket.evidencia_url) {
+            evidenciaHref = ticket.evidencia_url.startsWith('http')
+                ? ticket.evidencia_url
+                : `${API_URL}${ticket.evidencia_url.startsWith('/') ? '' : '/'}${ticket.evidencia_url}`;
+        }
         const evidenciaHtml = ticket.evidencia_url 
-            ? `<a href="${API_URL}${ticket.evidencia_url}" target="_blank" class="btn btn-sm btn-outline-info rounded-pill px-3"><i class="bi bi-paperclip"></i> Ver</a>`
+            ? `<a href="${evidenciaHref}" target="_blank" class="btn btn-sm btn-outline-info rounded-pill px-3"><i class="bi bi-paperclip"></i> Ver</a>`
             : `<span class="text-muted small"><i class="bi bi-dash"></i> Sin adjunto</span>`;
 
         const tr = document.createElement('tr');

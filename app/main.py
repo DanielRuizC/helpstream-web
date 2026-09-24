@@ -22,6 +22,7 @@ app = FastAPI(title="HelpStream Backend")
 
 os.makedirs("static/videos", exist_ok=True)
 os.makedirs("static/evidencias", exist_ok=True)
+app.mount("/portal_web", StaticFiles(directory="portal_web", html=True), name="portal")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Habilitar CORS

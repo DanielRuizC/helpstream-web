@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..database import get_db
@@ -11,14 +12,14 @@ router = APIRouter(
 
 
 @router.post("/login/local", response_model=schemas.Token)
-def login_local(credenciales: schemas.UsuarioLogin, db: Session = Depends(get_db)):
+def login_local(credenciales: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
 
     """
     Autenticación local mediante correo y contraseña.
     Valida las credenciales contra la base de datos y retorna un token de acceso JWT con user_id y rol_id.
     """
-    # 1. Buscar usuario por correo electrónico
-    usuario = db.query(models.Usuario).filter(models.Usuario.correo == credenciales.correo).first()
+    # 1. Buscar usuario por correo electrónico (recibido en el campo username del formulario)
+    usuario = db.query(models.Usuario).filter(models.Usuario.correo == credenciales.username).first()
 
     # 2. Validar existencia y verificación de contraseña
     if not usuario or not verify_password(credenciales.password, usuario.password_hash):
