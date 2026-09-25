@@ -295,6 +295,10 @@ function inicializarModuloUsuarios() {
             const correo = document.getElementById('regCorreo').value.trim();
             const password = document.getElementById('regPassword').value;
             const rol_id = parseInt(document.getElementById('regRol').value, 10);
+            const telefonoInput = document.getElementById('regTelefono');
+            const anexoInput = document.getElementById('regAnexo');
+            const telefono = telefonoInput ? telefonoInput.value.trim() : null;
+            const anexo = anexoInput ? anexoInput.value.trim() : null;
 
             if (alertBox) {
                 alertBox.classList.add('d-none');
@@ -308,7 +312,7 @@ function inicializarModuloUsuarios() {
                 const response = await fetch(ENDPOINTS.REGISTRO, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ nombre, correo, password, rol_id })
+                    body: JSON.stringify({ nombre, correo, password, rol_id, telefono, anexo })
                 });
 
                 if (!response.ok) {
@@ -363,6 +367,10 @@ function inicializarModuloUsuarios() {
             document.getElementById('editUserId').value = usuario.id;
             document.getElementById('editNombre').value = usuario.nombres || '';
             document.getElementById('editCorreo').value = usuario.correo || '';
+            const editTelefono = document.getElementById('editTelefono');
+            if (editTelefono) editTelefono.value = usuario.telefono || '';
+            const editAnexo = document.getElementById('editAnexo');
+            if (editAnexo) editAnexo.value = usuario.anexo || '';
             document.getElementById('editRol').value = usuario.rol_id;
             document.getElementById('editActivo').checked = usuario.activo;
 
@@ -401,6 +409,10 @@ function inicializarModuloUsuarios() {
             const correo = document.getElementById('editCorreo').value.trim();
             const rol_id = parseInt(document.getElementById('editRol').value, 10);
             const activo = document.getElementById('editActivo').checked;
+            const editTelefono = document.getElementById('editTelefono');
+            const editAnexo = document.getElementById('editAnexo');
+            const telefono = editTelefono ? editTelefono.value.trim() : null;
+            const anexo = editAnexo ? editAnexo.value.trim() : null;
             const btnGuardar = document.getElementById('btnGuardarEdicion');
 
             if (btnGuardar) {
@@ -412,7 +424,7 @@ function inicializarModuloUsuarios() {
                 const response = await fetch(`${ENDPOINTS.USUARIOS}/${userId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ nombres, correo, rol_id, activo })
+                    body: JSON.stringify({ nombres, correo, rol_id, activo, telefono, anexo })
                 });
 
                 if (!response.ok) {
@@ -464,7 +476,7 @@ async function cargarDirectorioUsuarios() {
 
         tbody.innerHTML = '';
         if (usuarios.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No hay usuarios registrados.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No hay usuarios registrados.</td></tr>';
             return;
         }
 
@@ -479,6 +491,8 @@ async function cargarDirectorioUsuarios() {
                 <td class="fw-bold text-muted">#${u.id}</td>
                 <td class="fw-semibold">${u.nombres || '-'}</td>
                 <td>${u.correo}</td>
+                <td>${u.telefono || '<span class="text-muted small">-</span>'}</td>
+                <td>${u.anexo ? `<span class="badge bg-light text-dark border">${u.anexo}</span>` : '<span class="text-muted small">-</span>'}</td>
                 <td><span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1">${rolNombre}</span></td>
                 <td>${estadoBadge}</td>
                 <td>
@@ -491,7 +505,7 @@ async function cargarDirectorioUsuarios() {
         });
     } catch (err) {
         console.error(err);
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Error al cargar usuarios desde el servidor.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger py-4">Error al cargar usuarios desde el servidor.</td></tr>';
     }
 }
 
@@ -617,7 +631,7 @@ async function cargarTickets() {
     } catch (error) {
         console.error(error);
         alert("Ocurrió un error al cargar los datos del servidor.");
-        document.getElementById('ticketsBody').innerHTML = '<tr><td colspan="9" class="text-center text-danger">Error al cargar datos</td></tr>';
+        document.getElementById('ticketsBody').innerHTML = '<tr><td colspan="11" class="text-center text-danger">Error al cargar datos</td></tr>';
     }
 }
 
@@ -698,10 +712,19 @@ function aplicarFiltros() {
 // Renderizar Tabla
 function renderTickets(tickets) {
     const tbody = document.getElementById('ticketsBody');
+    if (!tbody) return;
+
+    // Destruir instancias previas de popovers para evitar elementos huérfanos
+    const oldPopovers = tbody.querySelectorAll('[data-bs-toggle="popover"]');
+    oldPopovers.forEach(el => {
+        const pop = bootstrap.Popover.getInstance(el);
+        if (pop) pop.dispose();
+    });
+
     tbody.innerHTML = '';
 
     if (tickets.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No se encontraron tickets con los filtros actuales.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">No se encontraron tickets con los filtros actuales.</td></tr>';
         return;
     }
 
@@ -736,13 +759,41 @@ function renderTickets(tickets) {
             ? `<a href="${evidenciaHref}" target="_blank" class="btn btn-sm btn-outline-info rounded-pill px-3"><i class="bi bi-paperclip"></i> Ver</a>`
             : `<span class="text-muted small"><i class="bi bi-dash"></i> Sin adjunto</span>`;
 
+        // HU17: Información del Creador y Popover Interactivo de Bootstrap
+        const creador = ticket.creador || ticket.usuario || {};
+        const nombreCompleto = creador.nombre || (creador.nombres ? `${creador.nombres} ${creador.apellidos || ''}`.trim() : null) || (ticket.correo_solicitante ? ticket.correo_solicitante.split('@')[0] : `Usuario #${ticket.usuario_id}`);
+        const correoContacto = creador.correo || ticket.correo_solicitante || 'No registrado';
+        const telefonoContacto = creador.telefono || 'No registrado';
+        const anexoContacto = creador.anexo || 'No registrado';
+
+        const popoverContent = `
+            <div class='p-1'>
+                <div class='mb-1 text-nowrap'><strong><i class='bi bi-envelope-fill text-primary me-1'></i> Correo:</strong> ${correoContacto}</div>
+                <div class='mb-1 text-nowrap'><strong><i class='bi bi-telephone-fill text-success me-1'></i> Teléfono:</strong> ${telefonoContacto}</div>
+                <div class='text-nowrap'><strong><i class='bi bi-telephone-forward-fill text-info me-1'></i> Anexo:</strong> ${anexoContacto}</div>
+            </div>
+        `.trim().replace(/"/g, '&quot;');
+
+        const usuarioHtml = `
+            <button type="button" 
+               class="btn btn-link p-0 text-decoration-none fw-semibold text-primary d-inline-flex align-items-center" 
+               data-bs-toggle="popover" 
+               data-bs-html="true" 
+               title="Datos de Contacto" 
+               data-bs-content="${popoverContent}">
+                <i class="bi bi-person-circle me-1 text-secondary"></i><span>${nombreCompleto}</span>
+            </button>
+        `;
+
         const tr = document.createElement('tr');
 
         tr.innerHTML = `
             <td class="fw-bold text-muted">#${ticket.id}</td>
-            <td>${ticket.usuario_id}</td>
+            <td>${usuarioHtml}</td>
             <td class="small text-muted">${fechaFormatted}</td>
             <td style="max-width: 250px;" class="text-truncate" title="${ticket.descripcion}">${ticket.descripcion}</td>
+            <td><span class="badge bg-light text-dark border">${ticket.sede || '-'}</span></td>
+            <td><span class="badge bg-light text-dark border">${ticket.piso || '-'}</span></td>
             <td><span class="badge ${estadoBadge}">${ticket.estado}</span></td>
             <td><span class="badge ${criticidadBadge}">${criticidad}</span></td>
             <td>${evidenciaHtml}</td>
@@ -754,6 +805,15 @@ function renderTickets(tickets) {
             </td>
         `;
         tbody.appendChild(tr);
+    });
+
+    // Crucial (HU17): Inicializar popovers de Bootstrap inmediatamente tras inyectar las filas en el DOM
+    const popoverTriggerList = tbody.querySelectorAll('[data-bs-toggle="popover"]');
+    popoverTriggerList.forEach(popoverTriggerEl => {
+        new bootstrap.Popover(popoverTriggerEl, {
+            trigger: 'hover focus',
+            container: 'body'
+        });
     });
 }
 

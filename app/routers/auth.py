@@ -44,7 +44,9 @@ def registrar_usuario(usuario_in: schemas.UsuarioRegistro, db: Session = Depends
         correo=usuario_in.correo,
         password_hash=password_encriptada,
         rol_id=usuario_in.rol_id,
-        activo=True
+        activo=True,
+        telefono=usuario_in.telefono,
+        anexo=usuario_in.anexo
     )
 
     db.add(nuevo_usuario)
@@ -110,6 +112,10 @@ def actualizar_usuario(usuario_id: int, datos: schemas.UsuarioUpdate, db: Sessio
         usuario.rol_id = datos.rol_id
     if datos.activo is not None:
         usuario.activo = datos.activo
+    if datos.telefono is not None:
+        usuario.telefono = datos.telefono
+    if datos.anexo is not None:
+        usuario.anexo = datos.anexo
 
     db.commit()
     db.refresh(usuario)

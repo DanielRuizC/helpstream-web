@@ -29,6 +29,8 @@ class UsuarioBase(BaseModel):
     correo: str
     rol_id: int
     activo: bool = True
+    telefono: Optional[str] = None
+    anexo: Optional[str] = None
 
 class UsuarioCreate(UsuarioBase):
     password: str
@@ -38,6 +40,8 @@ class UsuarioRegistro(BaseModel):
     correo: str
     password: str
     rol_id: int
+    telefono: Optional[str] = None
+    anexo: Optional[str] = None
 
 class UsuarioUpdate(BaseModel):
     nombres: Optional[str] = None
@@ -45,6 +49,8 @@ class UsuarioUpdate(BaseModel):
     correo: Optional[str] = None
     rol_id: Optional[int] = None
     activo: Optional[bool] = None
+    telefono: Optional[str] = None
+    anexo: Optional[str] = None
 
 class UsuarioLogin(BaseModel):
     correo: str
@@ -57,6 +63,19 @@ class UsuarioResponse(BaseModel):
     correo: str
     rol_id: int
     activo: bool = True
+    telefono: Optional[str] = None
+    anexo: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+        orm_mode = True
+
+class UsuarioCreador(BaseModel):
+    nombre: Optional[str] = None
+    apellidos: Optional[str] = None
+    correo: Optional[str] = None
+    telefono: Optional[str] = None
+    anexo: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -99,6 +118,8 @@ class TicketResponse(TicketBase):
     criticidad: Optional[str] = "Medio"
     fecha_creacion: Optional[datetime] = None
     palabras_clave: List[str] = []
+    creador: Optional[UsuarioCreador] = None
+    usuario: Optional[UsuarioCreador] = None
 
     class Config:
         from_attributes = True

@@ -30,6 +30,8 @@ class Usuario(Base):
     password_hash = Column(String)
     rol_id = Column(Integer, ForeignKey("roles.id"))
     activo = Column(Boolean, default=True)
+    telefono = Column(String, nullable=True)
+    anexo = Column(String, nullable=True)
 
     # Relación bidireccional con Rol
     rol = relationship("Rol", back_populates="usuarios")

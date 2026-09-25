@@ -15,6 +15,31 @@ router = APIRouter(
 )
 
 
+def estructurar_info_creador(db: Session, ticket: models.Ticket, usuario: Optional[models.Usuario] = None) -> schemas.UsuarioCreador:
+    u = usuario
+    if not u and ticket.usuario_id:
+        u = db.query(models.Usuario).filter(models.Usuario.id == ticket.usuario_id).first()
+    if not u and ticket.correo_solicitante:
+        u = db.query(models.Usuario).filter(models.Usuario.correo == ticket.correo_solicitante.strip()).first()
+    
+    if u:
+        nombre_completo = f"{u.nombres or ''} {u.apellidos or ''}".strip() or u.nombres or "Usuario"
+        return schemas.UsuarioCreador(
+            nombre=nombre_completo,
+            apellidos=u.apellidos or "",
+            correo=u.correo or ticket.correo_solicitante or "",
+            telefono=u.telefono,
+            anexo=u.anexo
+        )
+    return schemas.UsuarioCreador(
+        nombre=ticket.correo_solicitante or f"Usuario #{ticket.usuario_id}",
+        apellidos="",
+        correo=ticket.correo_solicitante or "",
+        telefono=None,
+        anexo=None
+    )
+
+
 @router.post("/", response_model=schemas.TicketResponse, status_code=status.HTTP_201_CREATED)
 async def create_ticket(
     request: Request,
@@ -101,13 +126,28 @@ async def create_ticket(
     db.refresh(db_ticket)
 
     db_ticket.palabras_clave = ia_result["palabras_clave"]
+    creador_info = estructurar_info_creador(db, db_ticket)
+    db_ticket.creador = creador_info
+    db_ticket.usuario = creador_info
     return db_ticket
 
 @router.get("/", response_model=List[schemas.TicketResponse])
 def read_tickets(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    tickets = db.query(models.Ticket).order_by(models.Ticket.id.desc()).offset(skip).limit(limit).all()
-    for t in tickets:
+    results = (
+        db.query(models.Ticket, models.Usuario)
+        .outerjoin(models.Usuario, models.Ticket.usuario_id == models.Usuario.id)
+        .order_by(models.Ticket.id.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    tickets = []
+    for t, u in results:
         t.palabras_clave = analizar_ticket_ia(t.descripcion)["palabras_clave"]
+        creador_info = estructurar_info_creador(db, t, usuario=u)
+        t.creador = creador_info
+        t.usuario = creador_info
+        tickets.append(t)
     return tickets
 
 @router.patch("/{ticket_id}/estado", response_model=schemas.TicketResponse)
@@ -136,6 +176,9 @@ def update_ticket_state(ticket_id: int, ticket_update: schemas.TicketUpdateEstad
     db.commit()
     db.refresh(db_ticket)
     db_ticket.palabras_clave = analizar_ticket_ia(db_ticket.descripcion)["palabras_clave"]
+    creador_info = estructurar_info_creador(db, db_ticket)
+    db_ticket.creador = creador_info
+    db_ticket.usuario = creador_info
     return db_ticket
 
 @router.post("/{ticket_id}/resolver-autoatencion")
@@ -159,8 +202,20 @@ def resolver_ticket_autoatencion(ticket_id: int, db: Session = Depends(get_db)):
 
 @router.get("/usuario/{usuario_id}", response_model=List[schemas.TicketResponse])
 def get_user_tickets(usuario_id: int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    tickets = db.query(models.Ticket).filter(models.Ticket.usuario_id == usuario_id)\
-                .order_by(models.Ticket.id.desc()).offset(skip).limit(limit).all()
-    for t in tickets:
+    results = (
+        db.query(models.Ticket, models.Usuario)
+        .outerjoin(models.Usuario, models.Ticket.usuario_id == models.Usuario.id)
+        .filter(models.Ticket.usuario_id == usuario_id)
+        .order_by(models.Ticket.id.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    tickets = []
+    for t, u in results:
         t.palabras_clave = analizar_ticket_ia(t.descripcion)["palabras_clave"]
+        creador_info = estructurar_info_creador(db, t, usuario=u)
+        t.creador = creador_info
+        t.usuario = creador_info
+        tickets.append(t)
     return tickets
