@@ -46,6 +46,9 @@ class Ticket(Base):
     evidencia_url = Column(String, nullable=True)
     criticidad = Column(String, default="Medio")
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    correo_solicitante = Column(String, nullable=True)
+    sede = Column(String, nullable=True)
+    piso = Column(String, nullable=True)
 
 class VideoTutorial(Base):
     __tablename__ = "videos_tutoriales"

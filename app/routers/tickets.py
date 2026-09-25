@@ -25,13 +25,16 @@ async def create_ticket(
     usuario_id = None
     criticidad = None
     evidencia_url = None
+    correo = None
+    sede = None
+    piso = None
 
     if "application/json" in content_type:
         body = await request.json()
         descripcion = body.get("descripcion", "")
         criticidad = body.get("criticidad")
         usuario_id = body.get("usuario_id")
-        correo = body.get("correo")
+        correo = body.get("correo") or body.get("correo_solicitante")
         sede = body.get("sede")
         piso = body.get("piso")
         if correo and not usuario_id:
@@ -44,6 +47,9 @@ async def create_ticket(
         uid = form.get("usuario_id")
         if uid is not None and str(uid).isdigit():
             usuario_id = int(uid)
+        correo = form.get("correo") or form.get("correo_solicitante")
+        sede = form.get("sede")
+        piso = form.get("piso")
         archivo = form.get("archivo")
         if archivo and hasattr(archivo, "filename") and archivo.filename:
             ext = os.path.splitext(archivo.filename)[1] if archivo.filename else ""
@@ -57,13 +63,16 @@ async def create_ticket(
         raise HTTPException(status_code=400, detail="La descripción del ticket es obligatoria.")
 
     # Si no se pasó usuario_id explícito, extraerlo del token Bearer
-    if not usuario_id:
+    if not usuario_id or not correo:
         auth_header = request.headers.get("authorization")
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header.split(" ")[1].strip()
             payload = decode_access_token(token)
             if payload:
-                usuario_id = payload.get("user_id") or payload.get("sub")
+                if not usuario_id:
+                    usuario_id = payload.get("user_id") or payload.get("sub")
+                if not correo:
+                    correo = payload.get("correo")
 
     if not usuario_id:
         usuario_id = 1  # Fallback por defecto si no hay usuario asignado
@@ -82,7 +91,10 @@ async def create_ticket(
         usuario_id=usuario_id,
         descripcion=descripcion,
         evidencia_url=evidencia_url,
-        criticidad=criticidad
+        criticidad=criticidad,
+        correo_solicitante=correo,
+        sede=sede,
+        piso=piso
     )
     db.add(db_ticket)
     db.commit()

@@ -80,6 +80,9 @@ class TokenData(BaseModel):
 class TicketBase(BaseModel):
     usuario_id: int
     descripcion: str = Field(..., max_length=250)
+    correo_solicitante: Optional[str] = None
+    sede: Optional[str] = None
+    piso: Optional[str] = None
 
 class TicketCreate(TicketBase):
     pass
