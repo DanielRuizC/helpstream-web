@@ -29,6 +29,23 @@ let modalInstance = null;
 let allTickets = []; // Global state for client-side filtering
 
 // ==========================================
+// HU18: Tiempos SLA según Criticidad (en horas equivalentes a 1, 3 y 7 días)
+// Alta: 24h, Media: 72h, Baja: 168h
+// ==========================================
+const SLA_TIEMPOS_HORAS = {
+    'Alta': 24,
+    'Alto': 24,
+    'Crítico': 24,
+    'Critico': 24,
+    'Media': 72,
+    'Medio': 72,
+    'Baja': 168,
+    'Bajo': 168
+};
+
+let slaIntervalId = null;
+
+// ==========================================
 // HU21: Flujo de Autenticación / Inicio de Sesión
 // Endpoint: https://helpstream-api.onrender.com/api/auth/login/local
 // ==========================================
@@ -631,7 +648,7 @@ async function cargarTickets() {
     } catch (error) {
         console.error(error);
         alert("Ocurrió un error al cargar los datos del servidor.");
-        document.getElementById('ticketsBody').innerHTML = '<tr><td colspan="11" class="text-center text-danger">Error al cargar datos</td></tr>';
+        document.getElementById('ticketsBody').innerHTML = '<tr><td colspan="12" class="text-center text-danger">Error al cargar datos</td></tr>';
     }
 }
 
@@ -724,7 +741,7 @@ function renderTickets(tickets) {
     tbody.innerHTML = '';
 
     if (tickets.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">No se encontraron tickets con los filtros actuales.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-4">No se encontraron tickets con los filtros actuales.</td></tr>';
         return;
     }
 
@@ -746,6 +763,15 @@ function renderTickets(tickets) {
             criticidadBadge = "bg-danger";
         } else if (criticidad === "Medio" || criticidad === "Bajo") {
             criticidadBadge = "bg-warning text-dark";
+        }
+
+        // HU18: Columna SLA y atributos data para el temporizador en tiempo real
+        let slaHtml = '';
+        const estadoNorm = (ticket.estado || '').trim();
+        if (estadoNorm === 'Resuelto' || estadoNorm === 'Cerrado') {
+            slaHtml = `<span class="sla-timer text-muted fw-semibold" data-fecha="${ticket.fecha_creacion || ''}" data-criticidad="${criticidad}" data-estado="${ticket.estado}">Detenido</span>`;
+        } else {
+            slaHtml = `<span class="sla-timer fw-semibold" data-fecha="${ticket.fecha_creacion || ''}" data-criticidad="${criticidad}" data-estado="${ticket.estado}">-</span>`;
         }
 
         // Evidencia
@@ -796,6 +822,7 @@ function renderTickets(tickets) {
             <td><span class="badge bg-light text-dark border">${ticket.piso || '-'}</span></td>
             <td><span class="badge ${estadoBadge}">${ticket.estado}</span></td>
             <td><span class="badge ${criticidadBadge}">${criticidad}</span></td>
+            <td>${slaHtml}</td>
             <td>${evidenciaHtml}</td>
             <td style="max-width: 200px;" class="text-truncate" title="${ticket.comentario_tecnico || ''}">${ticket.comentario_tecnico || '-'}</td>
             <td>
@@ -815,6 +842,92 @@ function renderTickets(tickets) {
             container: 'body'
         });
     });
+
+    // Crucial (HU18): Inicializar temporizadores SLA de cuenta regresiva inmediatamente tras inyectar las filas en el DOM
+    iniciarTemporizadoresSLA();
+}
+
+// ==========================================
+// HU18: Motor de Cuenta Regresiva SLA en Tiempo Real
+// ==========================================
+function actualizarTemporizadoresSLA() {
+    const timers = document.querySelectorAll('.sla-timer');
+    const ahora = new Date();
+
+    timers.forEach(timer => {
+        const estado = (timer.getAttribute('data-estado') || '').trim();
+        if (estado === 'Resuelto' || estado === 'Cerrado') {
+            timer.textContent = 'Detenido';
+            timer.className = 'sla-timer text-muted fw-semibold';
+            timer.style.color = '';
+            return;
+        }
+
+        const fechaCreacionStr = timer.getAttribute('data-fecha');
+        if (!fechaCreacionStr) {
+            timer.textContent = '-';
+            timer.className = 'sla-timer text-muted small';
+            timer.style.color = '';
+            return;
+        }
+
+        const criticidad = timer.getAttribute('data-criticidad') || 'Medio';
+        const horasSLA = SLA_TIEMPOS_HORAS[criticidad] || 72; // Alta: 24, Media: 72, Baja: 168
+
+        const fechaCreacion = new Date(fechaCreacionStr);
+        if (isNaN(fechaCreacion.getTime())) {
+            timer.textContent = '-';
+            timer.style.color = '';
+            return;
+        }
+
+        const fechaLimite = new Date(fechaCreacion.getTime() + horasSLA * 3600000);
+        const diferenciaMs = fechaLimite.getTime() - ahora.getTime();
+
+        if (diferenciaMs <= 0) {
+            // Si el tiempo es menor a 0, muestra "Vencido" en rojo oscuro y negrita
+            timer.innerHTML = '<strong>Vencido</strong>';
+            timer.className = 'sla-timer fw-bold';
+            timer.style.color = '#8b0000';
+        } else {
+            timer.style.color = '';
+            const totalMinutos = Math.floor(diferenciaMs / 60000);
+            const totalHoras = Math.floor(totalMinutos / 60);
+            const dias = Math.floor(totalHoras / 24);
+            const horasRestantes = totalHoras % 24;
+            const minutosRestantes = totalMinutos % 60;
+
+            let textoTiempo = '';
+            if (dias > 0) {
+                textoTiempo = `${dias}d ${horasRestantes}h`;
+            } else if (totalHoras > 0) {
+                textoTiempo = `${totalHoras}h ${minutosRestantes}m`;
+            } else {
+                textoTiempo = `${minutosRestantes}m`;
+            }
+
+            // Validación de Colores:
+            // Si el tiempo restante es menor a 1 hora (< 60 minutos): color rojo (text-danger o badge bg-danger)
+            if (totalHoras < 1) {
+                timer.textContent = textoTiempo;
+                timer.className = 'sla-timer badge bg-danger text-white shadow-sm';
+            } else {
+                // Si está en tiempo normal (mayor a 1 hora): aplica un color verde o neutro
+                timer.textContent = textoTiempo;
+                timer.className = 'sla-timer badge bg-success bg-opacity-10 text-success border border-success border-opacity-25';
+            }
+        }
+    });
+}
+
+function iniciarTemporizadoresSLA() {
+    if (slaIntervalId) {
+        clearInterval(slaIntervalId);
+    }
+    // Ejecutar inmediatamente al inyectar filas
+    actualizarTemporizadoresSLA();
+    // Ejecutar cada 60000 ms (1 minuto)
+    slaIntervalId = setInterval(actualizarTemporizadoresSLA, 60000);
 }
 
 function obtenerBadgeEstado(estado) {
