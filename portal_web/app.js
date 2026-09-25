@@ -295,8 +295,8 @@ function inicializarModuloUsuarios() {
             const correo = document.getElementById('regCorreo').value.trim();
             const password = document.getElementById('regPassword').value;
             const rol_id = parseInt(document.getElementById('regRol').value, 10);
-            const telefonoInput = document.getElementById('regTelefono');
-            const anexoInput = document.getElementById('regAnexo');
+            const telefonoInput = document.getElementById('telefono') || document.getElementById('regTelefono');
+            const anexoInput = document.getElementById('anexo') || document.getElementById('regAnexo');
             const telefono = telefonoInput ? telefonoInput.value.trim() : null;
             const anexo = anexoInput ? anexoInput.value.trim() : null;
 
@@ -367,9 +367,9 @@ function inicializarModuloUsuarios() {
             document.getElementById('editUserId').value = usuario.id;
             document.getElementById('editNombre').value = usuario.nombres || '';
             document.getElementById('editCorreo').value = usuario.correo || '';
-            const editTelefono = document.getElementById('editTelefono');
+            const editTelefono = document.getElementById('telefono') || document.getElementById('editTelefono');
             if (editTelefono) editTelefono.value = usuario.telefono || '';
-            const editAnexo = document.getElementById('editAnexo');
+            const editAnexo = document.getElementById('anexo') || document.getElementById('editAnexo');
             if (editAnexo) editAnexo.value = usuario.anexo || '';
             document.getElementById('editRol').value = usuario.rol_id;
             document.getElementById('editActivo').checked = usuario.activo;
@@ -409,8 +409,8 @@ function inicializarModuloUsuarios() {
             const correo = document.getElementById('editCorreo').value.trim();
             const rol_id = parseInt(document.getElementById('editRol').value, 10);
             const activo = document.getElementById('editActivo').checked;
-            const editTelefono = document.getElementById('editTelefono');
-            const editAnexo = document.getElementById('editAnexo');
+            const editTelefono = document.getElementById('telefono') || document.getElementById('editTelefono');
+            const editAnexo = document.getElementById('anexo') || document.getElementById('editAnexo');
             const telefono = editTelefono ? editTelefono.value.trim() : null;
             const anexo = editAnexo ? editAnexo.value.trim() : null;
             const btnGuardar = document.getElementById('btnGuardarEdicion');
