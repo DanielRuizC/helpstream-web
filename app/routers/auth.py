@@ -92,6 +92,8 @@ def actualizar_usuario(usuario_id: int, datos: schemas.UsuarioUpdate, db: Sessio
 
     if datos.nombres is not None:
         usuario.nombres = datos.nombres
+    elif getattr(datos, "nombre", None) is not None:
+        usuario.nombres = datos.nombre
     if datos.apellidos is not None:
         usuario.apellidos = datos.apellidos
     if datos.correo is not None:

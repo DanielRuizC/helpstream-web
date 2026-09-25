@@ -44,6 +44,7 @@ class UsuarioRegistro(BaseModel):
     anexo: Optional[str] = None
 
 class UsuarioUpdate(BaseModel):
+    nombre: Optional[str] = None
     nombres: Optional[str] = None
     apellidos: Optional[str] = None
     correo: Optional[str] = None
