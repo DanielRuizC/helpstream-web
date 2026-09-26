@@ -1,15 +1,59 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional, Union
 from .. import models, schemas
 from ..database import get_db
-from ..auth import verify_password, get_password_hash, create_access_token
+from ..auth import verify_password, get_password_hash, create_access_token, decode_access_token
 
 router = APIRouter(
     prefix="/api/auth",
     tags=["Autenticación"]
 )
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login/local", auto_error=False)
+
+
+def get_current_user(
+    request: Request,
+    token: Optional[str] = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+) -> models.Usuario:
+    """Valida el token Bearer y recupera el usuario autenticado actual."""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Credenciales de autenticación no válidas o ausentes.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    if not token:
+        auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+        if auth_header:
+            if auth_header.lower().startswith("bearer "):
+                token = auth_header[7:].strip()
+            else:
+                token = auth_header.strip()
+
+    if not token:
+        raise credentials_exception
+
+    payload = decode_access_token(token)
+    if not payload:
+        raise credentials_exception
+
+    user_id = payload.get("user_id") or payload.get("sub")
+    if not user_id:
+        raise credentials_exception
+
+    try:
+        user_id = int(user_id)
+    except (ValueError, TypeError):
+        pass
+
+    usuario = db.query(models.Usuario).filter(models.Usuario.id == user_id).first()
+    if not usuario:
+        raise credentials_exception
+
+    return usuario
 
 
 @router.post("/registro", response_model=schemas.UsuarioResponse, status_code=status.HTTP_201_CREATED)
@@ -163,3 +207,55 @@ def login_local(credenciales: OAuth2PasswordRequestForm = Depends(), db: Session
         "access_token": access_token,
         "token_type": "bearer"
     }
+
+
+@router.patch("/fcm-token")
+async def actualizar_fcm_token(
+    request: Request,
+    datos: Optional[Union[schemas.FCMTokenUpdate, str]] = Body(None),
+    current_user: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Registra o actualiza el identificador del dispositivo móvil (fcm_token)
+    para el usuario actualmente autenticado (HU08).
+    """
+    token_str = None
+    if isinstance(datos, schemas.FCMTokenUpdate):
+        token_str = datos.fcm_token or datos.token
+    elif isinstance(datos, str):
+        token_str = datos
+
+    # Respaldo en caso de envío como JSON plano o raw string
+    if not token_str:
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                token_str = body.get("fcm_token") or body.get("token")
+            elif isinstance(body, str):
+                token_str = body
+        except Exception:
+            try:
+                raw_bytes = await request.body()
+                raw_str = raw_bytes.decode("utf-8").strip()
+                if raw_str:
+                    token_str = raw_str.strip('"')
+            except Exception:
+                pass
+
+    if not token_str or not token_str.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Se requiere un token FCM válido en el cuerpo de la solicitud."
+        )
+
+    current_user.fcm_token = token_str.strip()
+    db.commit()
+    db.refresh(current_user)
+
+    return {
+        "mensaje": "Token FCM guardado correctamente.",
+        "usuario_id": current_user.id,
+        "fcm_token": current_user.fcm_token
+    }
+

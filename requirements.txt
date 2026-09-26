@@ -8,3 +8,4 @@ PyJWT
 psycopg2-binary
 python-dotenv
 python-multipart
+firebase-admin

@@ -4,10 +4,19 @@ from typing import List, Optional
 import os
 import uuid
 import shutil
+import firebase_admin
+from firebase_admin import messaging
 from .. import crud, models, schemas
 from ..database import get_db
 from ..auth import decode_access_token
 from ..utils.ia_analyzer import analizar_ticket_ia
+
+# Inicializar Firebase Admin SDK si no ha sido inicializado previamente
+if not firebase_admin._apps:
+    try:
+        firebase_admin.initialize_app()
+    except Exception:
+        pass
 
 router = APIRouter(
     prefix="/tickets",
@@ -175,6 +184,27 @@ def update_ticket_state(ticket_id: int, ticket_update: schemas.TicketUpdateEstad
         
     db.commit()
     db.refresh(db_ticket)
+
+    # Disparador de Notificaciones Push FCM (HU08)
+    try:
+        usuario_creador = None
+        if db_ticket.usuario_id:
+            usuario_creador = db.query(models.Usuario).filter(models.Usuario.id == db_ticket.usuario_id).first()
+        if not usuario_creador and db_ticket.correo_solicitante:
+            usuario_creador = db.query(models.Usuario).filter(models.Usuario.correo == db_ticket.correo_solicitante.strip()).first()
+
+        if usuario_creador and usuario_creador.fcm_token:
+            mensaje = messaging.Message(
+                notification=messaging.Notification(
+                    title="Actualización de Ticket",
+                    body=f"Tu ticket #{db_ticket.id} ahora está {nuevo_estado}"
+                ),
+                token=usuario_creador.fcm_token
+            )
+            messaging.send(mensaje)
+    except Exception as e:
+        print(f"[FCM Error] No se pudo enviar notificación push para el ticket #{db_ticket.id}: {e}")
+
     db_ticket.palabras_clave = analizar_ticket_ia(db_ticket.descripcion)["palabras_clave"]
     creador_info = estructurar_info_creador(db, db_ticket)
     db_ticket.creador = creador_info

@@ -32,6 +32,7 @@ class Usuario(Base):
     activo = Column(Boolean, default=True)
     telefono = Column(String, nullable=True)
     anexo = Column(String, nullable=True)
+    fcm_token = Column(String, nullable=True)
 
     # Relación bidireccional con Rol
     rol = relationship("Rol", back_populates="usuarios")

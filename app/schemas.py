@@ -66,10 +66,15 @@ class UsuarioResponse(BaseModel):
     activo: bool = True
     telefono: Optional[str] = None
     anexo: Optional[str] = None
+    fcm_token: Optional[str] = None
 
     class Config:
         from_attributes = True
         orm_mode = True
+
+class FCMTokenUpdate(BaseModel):
+    fcm_token: Optional[str] = None
+    token: Optional[str] = None
 
 class UsuarioCreador(BaseModel):
     nombre: Optional[str] = None
