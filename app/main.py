@@ -1,8 +1,10 @@
-# pyrefly: ignore [missing-import]
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
+import json
+import firebase_admin
+from firebase_admin import credentials
 from . import models
 from .database import engine
 from .routers import tickets, videos, auth
@@ -17,6 +19,15 @@ try:
         conn.execute(text("ALTER TABLE tickets ADD COLUMN fecha_creacion DATETIME"))
 except Exception:
     pass # La columna ya existe o la tabla no está creada aún
+
+cert_string = os.environ.get('FIREBASE_CERT')
+if cert_string and not firebase_admin._apps:
+    try:
+        cert_dict = json.loads(cert_string)
+        cred = credentials.Certificate(cert_dict)
+        firebase_admin.initialize_app(cred)
+    except Exception as e:
+        print(f"Error al inicializar Firebase Admin: {e}")
 
 app = FastAPI(title="HelpStream Backend")
 
