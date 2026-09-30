@@ -7,7 +7,7 @@ import firebase_admin
 from firebase_admin import credentials
 from . import models
 from .database import engine
-from .routers import tickets, videos, auth
+from .routers import tickets, videos, auth, reportes
 
 
 # Create database tables
@@ -48,6 +48,8 @@ app.add_middleware(
 app.include_router(tickets.router)
 app.include_router(videos.router)
 app.include_router(auth.router)
+app.include_router(reportes.router)
+app.include_router(reportes.dashboard_router)
 
 
 @app.on_event("startup")
@@ -66,10 +68,28 @@ def inicializar_roles_default():
             if not existe:
                 db.add(models.Rol(id=rol_id, nombre=nombre, descripcion=desc))
         db.commit()
+
+        # Garantizar existencia de al menos un usuario con rol Jefe de TI (HU20)
+        jefe_existente = db.query(models.Usuario).filter(models.Usuario.rol_id == 3).first()
+        if not jefe_existente:
+            from .auth import get_password_hash
+            jefe_default = models.Usuario(
+                nombres="Carlos Mendoza",
+                apellidos="Jefatura TI",
+                correo="jefe@helpstream.com",
+                password_hash=get_password_hash("jefe123"),
+                rol_id=3,
+                activo=True,
+                telefono="987654321",
+                anexo="101"
+            )
+            db.add(jefe_default)
+            db.commit()
     except Exception:
         db.rollback()
     finally:
         db.close()
+
 
 
 @app.get("/")

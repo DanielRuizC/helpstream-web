@@ -1,0 +1,343 @@
+/* ==========================================================================
+   HelpStream - Tema Ejecutivo Jefatura de TI (HU20)
+   Paleta: Gris Oscuro / Antracita & Naranja Quemado (Burnt Orange)
+   ========================================================================== */
+
+:root {
+    /* Paleta Ejecutiva */
+    --admin-anthracite-dark: #121518;
+    --admin-anthracite: #1a1e23;
+    --admin-anthracite-surface: #22272e;
+    --admin-anthracite-light: #2d333b;
+    --admin-anthracite-muted: #57606a;
+
+    --admin-burnt-orange: #d35400;
+    --admin-burnt-orange-dark: #b84500;
+    --admin-burnt-orange-deep: #9e3b00;
+    --admin-burnt-orange-light: #e67e22;
+    --admin-burnt-orange-subtle: rgba(211, 84, 0, 0.12);
+    --admin-burnt-orange-glow: rgba(211, 84, 0, 0.25);
+
+    --admin-bg: #f3f5f8;
+    --admin-card-bg: #ffffff;
+    --admin-border: #e1e4e8;
+    --admin-text-main: #1f2328;
+    --admin-text-muted: #656d76;
+}
+
+body.admin-executive-body {
+    background-color: var(--admin-bg);
+    color: var(--admin-text-main);
+    font-family: 'Inter', sans-serif;
+}
+
+/* ==========================================
+   1. BARRA LATERAL (SIDEBAR ANTRACITA)
+   Reemplaza el azul corporativo por gris oscuro/antracita
+   ========================================== */
+.sidebar {
+    background-color: var(--admin-anthracite-dark) !important;
+    border-right: 1px solid var(--admin-anthracite-surface);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.35);
+}
+
+.sidebar-header {
+    background-color: var(--admin-anthracite) !important;
+    border-bottom: 1px solid var(--admin-anthracite-surface) !important;
+}
+
+.sidebar-header .text-info,
+.sidebar-header i.bi-layers-fill,
+.sidebar-header i.bi-shield-check {
+    color: var(--admin-burnt-orange) !important;
+}
+
+.sidebar .nav-link {
+    color: #adbac7 !important;
+    border-left: 4px solid transparent;
+    transition: all 0.25s ease-in-out;
+}
+
+.sidebar .nav-link:hover {
+    color: #ffffff !important;
+    background-color: var(--admin-anthracite-surface) !important;
+    border-left: 4px solid var(--admin-burnt-orange-light) !important;
+}
+
+.sidebar .nav-link.active {
+    color: #ffffff !important;
+    background: linear-gradient(90deg, rgba(211, 84, 0, 0.25) 0%, rgba(26, 30, 35, 0.8) 100%) !important;
+    border-left: 4px solid var(--admin-burnt-orange) !important;
+    font-weight: 600;
+}
+
+.sidebar .nav-link.active i {
+    color: var(--admin-burnt-orange) !important;
+}
+
+.sidebar-divider {
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ==========================================
+   2. BOTONES Y ACCIONES (NARANJA QUEMADO / BURNT ORANGE)
+   ========================================== */
+.btn-primary,
+.btn-burnt-orange {
+    background-color: var(--admin-burnt-orange) !important;
+    border-color: var(--admin-burnt-orange-dark) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 2px 8px var(--admin-burnt-orange-glow);
+}
+
+.btn-primary:hover,
+.btn-burnt-orange:hover {
+    background-color: var(--admin-burnt-orange-dark) !important;
+    border-color: var(--admin-burnt-orange-deep) !important;
+    color: #ffffff !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px var(--admin-burnt-orange-glow);
+}
+
+.btn-primary:active,
+.btn-burnt-orange:active {
+    background-color: var(--admin-burnt-orange-deep) !important;
+    transform: translateY(0);
+}
+
+.btn-outline-primary,
+.btn-outline-burnt-orange {
+    color: var(--admin-burnt-orange) !important;
+    border-color: var(--admin-burnt-orange) !important;
+    background-color: transparent !important;
+    font-weight: 600;
+    transition: all 0.2s ease-in-out;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-burnt-orange:hover {
+    background-color: var(--admin-burnt-orange) !important;
+    border-color: var(--admin-burnt-orange) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px var(--admin-burnt-orange-glow);
+}
+
+/* Botón Hamburguesa Antracita */
+.sidebar-toggle-btn {
+    border-color: var(--admin-border) !important;
+    color: var(--admin-anthracite) !important;
+}
+
+.sidebar-toggle-btn:hover {
+    background-color: var(--admin-burnt-orange-subtle) !important;
+    color: var(--admin-burnt-orange) !important;
+    border-color: var(--admin-burnt-orange) !important;
+}
+
+/* ==========================================
+   3. CABECERA SUPERIOR (TOP HEADER)
+   ========================================== */
+.top-header {
+    background-color: var(--admin-card-bg);
+    border-bottom: 1px solid var(--admin-border);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+}
+
+.header-brand-title {
+    color: var(--admin-anthracite) !important;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.badge-jefatura {
+    background-color: var(--admin-burnt-orange) !important;
+    color: #ffffff !important;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    box-shadow: 0 2px 6px var(--admin-burnt-orange-glow);
+}
+
+.user-avatar.avatar-jefatura {
+    background: linear-gradient(135deg, var(--admin-burnt-orange) 0%, var(--admin-burnt-orange-dark) 100%) !important;
+    color: #ffffff;
+    box-shadow: 0 2px 8px var(--admin-burnt-orange-glow);
+}
+
+/* ==========================================
+   4. TARJETAS DE KPIS Y REPORTES EJECUTIVOS
+   ========================================== */
+.kpi-card {
+    border-top: 3px solid transparent;
+    transition: all 0.25s ease-in-out;
+    background: var(--admin-card-bg);
+    border-radius: 14px;
+    border: 1px solid var(--admin-border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.kpi-card:hover {
+    border-top: 3px solid var(--admin-burnt-orange);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.kpi-card.highlight-orange {
+    border-top: 3px solid var(--admin-burnt-orange) !important;
+    background: linear-gradient(180deg, rgba(211, 84, 0, 0.03) 0%, var(--admin-card-bg) 100%);
+}
+
+.kpi-title {
+    color: var(--admin-text-muted);
+    font-weight: 600;
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+}
+
+.kpi-value {
+    color: var(--admin-anthracite) !important;
+    font-weight: 800;
+}
+
+.kpi-value.text-burnt-orange {
+    color: var(--admin-burnt-orange) !important;
+}
+
+/* Iconos Destacados Ejecutivos */
+.kpi-icon-wrapper {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--admin-burnt-orange-subtle);
+    color: var(--admin-burnt-orange);
+    font-size: 1.5rem;
+    margin-bottom: 12px;
+}
+
+.kpi-icon-wrapper.icon-anthracite {
+    background-color: rgba(26, 30, 35, 0.08);
+    color: var(--admin-anthracite);
+}
+
+/* Barras de Progreso SLA */
+.progress-bar-burnt-orange {
+    background: linear-gradient(90deg, var(--admin-burnt-orange-light) 0%, var(--admin-burnt-orange) 100%) !important;
+}
+
+/* ==========================================
+   5. INDICADORES DE ALERTA Y BADGES
+   ========================================= */
+.alert-indicator-burnt {
+    background-color: #fdf5e6;
+    border-left: 4px solid var(--admin-burnt-orange);
+    color: #78350f;
+    padding: 14px 18px;
+    border-radius: 8px;
+    font-weight: 500;
+}
+
+.badge-sla-normal {
+    background-color: #d1fae5;
+    color: #065f46;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 1px solid #a7f3d0;
+}
+
+.badge-sla-riesgo {
+    background-color: var(--admin-burnt-orange-subtle);
+    color: var(--admin-burnt-orange-dark);
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(211, 84, 0, 0.35);
+}
+
+.badge-sla-vencido {
+    background-color: #fee2e2;
+    color: #991b1b;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 1px solid #fecaca;
+}
+
+.badge-sla-cumplido {
+    background-color: #e0f2fe;
+    color: #0369a1;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 6px;
+}
+
+/* ==========================================
+   6. CONTENEDOR DE TABLAS Y FILTROS
+   ========================================== */
+.table-container {
+    background: var(--admin-card-bg);
+    border-radius: 14px;
+    border: 1px solid var(--admin-border);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+    padding: 24px;
+}
+
+.table > thead > tr > th {
+    background-color: #f8fafc;
+    color: var(--admin-anthracite);
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.76rem;
+    letter-spacing: 0.6px;
+    border-bottom: 2px solid var(--admin-border);
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(211, 84, 0, 0.02) !important;
+}
+
+.filters-bar {
+    background: var(--admin-card-bg);
+    border: 1px solid var(--admin-border);
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    padding: 20px;
+    margin-bottom: 24px;
+}
+
+/* Custom Executive Focus Ring */
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--admin-burnt-orange) !important;
+    box-shadow: 0 0 0 3px var(--admin-burnt-orange-glow) !important;
+}
+
+/* Estilos de Impresión Ejecutiva */
+@media print {
+    .sidebar,
+    .top-header,
+    .filters-bar,
+    .btn-burnt-orange,
+    .no-print {
+        display: none !important;
+    }
+    .main-wrapper {
+        margin-left: 0 !important;
+        width: 100% !important;
+    }
+    .content-area {
+        padding: 0 !important;
+    }
+    .kpi-card, .table-container {
+        border: 1px solid #ccc !important;
+        box-shadow: none !important;
+    }
+}

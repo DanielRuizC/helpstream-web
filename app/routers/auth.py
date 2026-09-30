@@ -56,6 +56,31 @@ def get_current_user(
     return usuario
 
 
+def get_current_admin_user(
+    current_user: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> models.Usuario:
+    """
+    HU20: Dependencia de seguridad que valida el JWT y comprueba que el usuario autenticado
+    tenga el rol de 'Jefe de TI' (o rol_id correspondiente al administrador).
+    Si el usuario no tiene dicho rol, la API rechaza la petición lanzando un HTTPException
+    con código de estado 403 Forbidden y el detalle 'Acceso denegado exclusivo para Jefatura'.
+    """
+    rol_nombre = ""
+    if current_user.rol and current_user.rol.nombre:
+        rol_nombre = current_user.rol.nombre.strip().lower()
+
+    # Rol ID 3 = jefe_ti según la convención del sistema
+    es_jefe = (current_user.rol_id == 3) or (rol_nombre in ["jefe_ti", "jefe de ti", "jefe", "administrador", "admin"])
+
+    if not es_jefe:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso denegado exclusivo para Jefatura"
+        )
+    return current_user
+
+
 @router.post("/registro", response_model=schemas.UsuarioResponse, status_code=status.HTTP_201_CREATED)
 def registrar_usuario(usuario_in: schemas.UsuarioRegistro, db: Session = Depends(get_db)):
     """
@@ -194,19 +219,37 @@ def login_local(credenciales: OAuth2PasswordRequestForm = Depends(), db: Session
         )
 
     # 4. Inyectar user_id y rol_id en el payload del token JWT
+    rol_nombre_raw = usuario.rol.nombre if usuario.rol and usuario.rol.nombre else ""
+    if usuario.rol_id == 3 or rol_nombre_raw.lower() in ["jefe_ti", "jefe de ti", "jefe"]:
+        rol_display = "Jefe de TI"
+        rol_code = "jefe_ti"
+    elif usuario.rol_id == 2 or rol_nombre_raw.lower() in ["analista_ti", "analista"]:
+        rol_display = "Analista TI"
+        rol_code = "analista_ti"
+    else:
+        rol_display = "Usuario Planta"
+        rol_code = "usuario_planta"
+
     payload = {
         "sub": str(usuario.id),
         "user_id": usuario.id,
         "rol_id": usuario.rol_id,
+        "rol": rol_display,
+        "rol_code": rol_code,
         "correo": usuario.correo
     }
     access_token = create_access_token(data=payload)
 
-    # 5. Retornar formato JSON con el token generado
+    # 5. Retornar formato JSON con el token generado y atributos de rol
     return {
         "access_token": access_token,
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "rol_id": usuario.rol_id,
+        "rol": rol_display,
+        "rol_nombre": rol_display,
+        "user_id": usuario.id
     }
+
 
 
 @router.patch("/fcm-token")

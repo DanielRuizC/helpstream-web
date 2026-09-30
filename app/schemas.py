@@ -91,11 +91,16 @@ class UsuarioCreador(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    rol_id: Optional[int] = None
+    rol: Optional[str] = None
+    rol_nombre: Optional[str] = None
+    user_id: Optional[int] = None
 
 class TokenData(BaseModel):
     user_id: Optional[int] = None
     rol_id: Optional[int] = None
     correo: Optional[str] = None
+
 
 
 # ==========================================

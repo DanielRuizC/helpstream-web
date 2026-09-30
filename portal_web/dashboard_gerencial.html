@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HelpStream | Dashboard Gerencial & Reportes TI</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Global Corporate Styles -->
+    <link href="style.css" rel="stylesheet">
+    <!-- Executive Theme Styles (HU20 - Antracita & Burnt Orange) -->
+    <link href="admin-theme.css" rel="stylesheet">
+    <!-- Protección de ruta (HU20 & HU21): Valida autenticación y rol de Jefatura -->
+    <script>
+        (function verificarAccesoJefatura() {
+            const token = localStorage.getItem('helpstream_token');
+            if (!token) {
+                window.location.replace('login.html');
+                return;
+            }
+            // Si el rol guardado es analista o usuario final, redirigir a index.html
+            const rol = localStorage.getItem('helpstream_user_role');
+            const rolId = localStorage.getItem('helpstream_rol_id');
+            if (rol && rol !== 'Jefe de TI' && rolId && rolId !== '3') {
+                alert('Acceso denegado exclusivo para Jefatura. Redirigiendo a su portal operativo...');
+                window.location.replace('index.html');
+            }
+        })();
+    </script>
+</head>
+
+<body class="admin-executive-body">
+    <!-- Backdrop para menú móvil -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <!-- Sidebar Colapsable Ejecutivo (Gris Oscuro / Antracita) -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header d-flex align-items-center justify-content-between px-3">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-shield-shaded fs-4 text-warning"></i>
+                <div>
+                    <span class="fw-bold tracking-wide text-white d-block" style="font-size: 1.05rem;">HelpStream</span>
+                    <span class="badge-jefatura py-0 px-2" style="font-size: 0.65rem;">Jefatura TI</span>
+                </div>
+            </div>
+            <button class="btn btn-link text-white-50 p-0 d-lg-none" id="sidebarCloseBtn" aria-label="Cerrar menú">
+                <i class="bi bi-x-lg fs-5"></i>
+            </button>
+        </div>
+
+        <div class="mt-4">
+            <div class="px-3 text-uppercase text-white-50 small fw-bold mb-2" style="font-size: 0.7rem; letter-spacing: 0.6px;">Módulo Ejecutivo</div>
+            <a href="dashboard_gerencial.html" class="nav-link active text-decoration-none" id="nav-gerencial">
+                <i class="bi bi-speedometer2"></i> Dashboard Gerencial
+            </a>
+            <a href="#modulo-reportes" class="nav-link text-decoration-none" id="nav-reportes-scroll">
+                <i class="bi bi-file-earmark-bar-graph-fill"></i> Módulo de Reportes
+            </a>
+            <a href="#metricas-sla" class="nav-link text-decoration-none" id="nav-sla-scroll">
+                <i class="bi bi-clock-history"></i> Métricas & SLAs
+            </a>
+
+            <div class="sidebar-divider my-3"></div>
+            <div class="px-3 text-uppercase text-white-50 small fw-bold mb-2" style="font-size: 0.7rem; letter-spacing: 0.6px;">Gestión de Usuarios</div>
+            <a href="directorio_usuarios.html" class="nav-link text-decoration-none" id="nav-dir-user">
+                <i class="bi bi-people-fill"></i> Directorio de Usuarios
+            </a>
+            <a href="registrar_usuario.html" class="nav-link text-decoration-none" id="nav-reg-user">
+                <i class="bi bi-person-plus-fill"></i> Registrar Usuario
+            </a>
+
+            <div class="sidebar-divider my-3"></div>
+            <div class="px-3 text-uppercase text-white-50 small fw-bold mb-2" style="font-size: 0.7rem; letter-spacing: 0.6px;">Portal Operativo</div>
+            <a href="index.html" class="nav-link text-decoration-none" id="nav-portal-operativo">
+                <i class="bi bi-layout-text-window-reverse"></i> Mesa de Ayuda
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Wrapper -->
+    <div class="main-wrapper">
+        <!-- Top Header Ejecutivo -->
+        <div class="top-header">
+            <div class="d-flex align-items-center">
+                <button class="sidebar-toggle-btn me-3" id="sidebarToggle" type="button" aria-label="Alternar menú lateral" title="Menú lateral">
+                    <i class="bi bi-list fs-3"></i>
+                </button>
+                <div class="d-flex align-items-center gap-2">
+                    <h4 class="mb-0 header-brand-title fw-bold">HelpStream</h4>
+                    <span class="badge-jefatura"><i class="bi bi-shield-check me-1"></i> Jefatura de TI</span>
+                </div>
+            </div>
+
+            <!-- Tarjeta de Usuario Ejecutivo -->
+            <div class="user-card d-flex align-items-center gap-3">
+                <div class="user-info text-end d-none d-sm-block">
+                    <p class="name mb-0 fw-bold" id="headerAdminNombre">Carlos Mendoza</p>
+                    <p class="role mb-0 text-muted small" id="headerAdminRol">Jefe del Área de TI</p>
+                </div>
+                <div class="user-avatar avatar-jefatura fw-bold" id="headerAdminAvatar">
+                    JT
+                </div>
+                <button class="btn btn-outline-danger btn-sm rounded-pill ms-2 px-3 fw-semibold" onclick="cerrarSesion()" title="Cerrar sesión">
+                    <i class="bi bi-box-arrow-right me-1"></i> Salir
+                </button>
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="content-area" id="view-gerencial">
+            <!-- Título de Sección y Controles -->
+            <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+                <div>
+                    <h3 class="fw-bold mb-1" style="color: var(--admin-anthracite);">Panel Ejecutivo de Control & Reportes</h3>
+                    <p class="text-muted small mb-0">Supervisión estratégica de incidencias, auditoría de tiempos SLA y análisis de autoatención (HU20).</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-burnt-orange shadow-sm" id="btnRecargarDashboard">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Actualizar Métricas
+                    </button>
+                    <button class="btn btn-outline-burnt-orange shadow-sm" id="btnExportarCSV">
+                        <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i> Exportar CSV
+                    </button>
+                    <button class="btn btn-outline-secondary shadow-sm" onclick="window.print()">
+                        <i class="bi bi-printer-fill me-1"></i> Imprimir
+                    </button>
+                </div>
+            </div>
+
+            <!-- Banner Alerta de Permisos o Estado (oculto por defecto) -->
+            <div id="gerencialAlert" class="alert d-none mb-4 py-2 px-3 small alert-indicator-burnt" role="alert">
+                <i class="bi bi-info-circle-fill me-2"></i>
+                <span id="gerencialAlertMsg">Mensaje de alerta</span>
+            </div>
+
+            <!-- KPI Cards Grid (4 Columnas) -->
+            <div class="row g-3 mb-4" id="metricas-sla">
+                <!-- KPI 1: Cumplimiento Global SLA -->
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="kpi-card highlight-orange p-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="kpi-title">Cumplimiento Global SLA</span>
+                            <div class="kpi-icon-wrapper mb-0" style="width: 38px; height: 38px; font-size: 1.2rem;">
+                                <i class="bi bi-shield-check"></i>
+                            </div>
+                        </div>
+                        <div class="kpi-value text-burnt-orange" id="kpiSlaPorcentaje">--%</div>
+                        <div class="progress mt-2" style="height: 6px;">
+                            <div id="kpiSlaProgressBar" class="progress-bar progress-bar-burnt-orange" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <span class="kpi-subtext d-block mt-2">
+                            <span class="text-success fw-bold" id="kpiSlaSubtext">-- dentro de tiempo</span> · Meta: &gt;90%
+                        </span>
+                    </div>
+                </div>
+
+                <!-- KPI 2: Total de Incidencias -->
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="kpi-card p-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="kpi-title">Volumen de Tickets</span>
+                            <div class="kpi-icon-wrapper icon-anthracite mb-0" style="width: 38px; height: 38px; font-size: 1.2rem;">
+                                <i class="bi bi-ticket-detailed-fill"></i>
+                            </div>
+                        </div>
+                        <div class="kpi-value" id="kpiTotalTickets">--</div>
+                        <span class="kpi-subtext d-block mt-2" id="kpiTicketsDesglose">
+                            <span class="badge bg-danger bg-opacity-10 text-danger" id="kpiAbiertos">-- Abiertos</span>
+                            <span class="badge bg-warning bg-opacity-10 text-warning" id="kpiEnProgreso">-- En Prog.</span>
+                            <span class="badge bg-success bg-opacity-10 text-success" id="kpiResueltos">-- Resueltos</span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- KPI 3: Críticos Pendientes (Alta) -->
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="kpi-card p-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="kpi-title">Incidentes Críticos</span>
+                            <div class="kpi-icon-wrapper mb-0" style="width: 38px; height: 38px; font-size: 1.2rem; background: rgba(220, 53, 69, 0.12); color: #dc3545;">
+                                <i class="bi bi-exclamation-triangle-fill"></i>
+                            </div>
+                        </div>
+                        <div class="kpi-value text-danger" id="kpiCriticosPendientes">--</div>
+                        <span class="kpi-subtext d-block mt-2">
+                            <span class="fw-semibold text-danger">Alta Criticidad sin resolver</span> (SLA: 24h)
+                        </span>
+                    </div>
+                </div>
+
+                <!-- KPI 4: Autoatención por Video (HU13) -->
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="kpi-card p-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="kpi-title">Autoatención (Videos)</span>
+                            <div class="kpi-icon-wrapper mb-0" style="width: 38px; height: 38px; font-size: 1.2rem; background: rgba(13, 202, 240, 0.12); color: #0dcaf0;">
+                                <i class="bi bi-play-btn-fill"></i>
+                            </div>
+                        </div>
+                        <div class="kpi-value" id="kpiAutoatencion">--</div>
+                        <span class="kpi-subtext d-block mt-2">
+                            Tickets resueltos vía microaprendizaje
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Paneles Analíticos Secundarios (Distribución de Criticidad y Sedes) -->
+            <div class="row g-3 mb-4">
+                <!-- Panel de Criticidad -->
+                <div class="col-12 col-md-6 col-lg-4">
+                    <div class="card border-0 shadow-sm rounded-4 p-3 h-100" style="background: var(--admin-card-bg); border: 1px solid var(--admin-border) !important;">
+                        <h6 class="fw-bold mb-3 d-flex align-items-center gap-2" style="color: var(--admin-anthracite);">
+                            <i class="bi bi-pie-chart-fill text-warning"></i> Desglose por Criticidad
+                        </h6>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="fw-semibold text-danger"><i class="bi bi-circle-fill me-1" style="font-size: 0.6rem;"></i> Alta (24h SLA)</span>
+                                <span class="fw-bold" id="distCritAlta">0 (0%)</span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div id="distCritAltaBar" class="progress-bar bg-danger" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="fw-semibold text-warning"><i class="bi bi-circle-fill me-1" style="font-size: 0.6rem;"></i> Media (72h SLA)</span>
+                                <span class="fw-bold" id="distCritMedia">0 (0%)</span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div id="distCritMediaBar" class="progress-bar bg-warning" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="fw-semibold text-info"><i class="bi bi-circle-fill me-1" style="font-size: 0.6rem;"></i> Baja (168h SLA)</span>
+                                <span class="fw-bold" id="distCritBaja">0 (0%)</span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div id="distCritBajaBar" class="progress-bar bg-info" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel de Estado Operativo -->
+                <div class="col-12 col-md-6 col-lg-4">
+                    <div class="card border-0 shadow-sm rounded-4 p-3 h-100" style="background: var(--admin-card-bg); border: 1px solid var(--admin-border) !important;">
+                        <h6 class="fw-bold mb-3 d-flex align-items-center gap-2" style="color: var(--admin-anthracite);">
+                            <i class="bi bi-activity text-success"></i> Tasa de Resolución de Tickets
+                        </h6>
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="text-muted small">Efectividad Global:</span>
+                            <span class="fs-4 fw-bold text-success" id="kpiTasaResolucion">--%</span>
+                        </div>
+                        <div class="progress mb-3" style="height: 8px;">
+                            <div id="barTasaResolucion" class="progress-bar bg-success" style="width: 0%"></div>
+                        </div>
+                        <div class="p-2 rounded bg-light border small">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span><i class="bi bi-check-circle-fill text-success me-1"></i> Resueltos:</span>
+                                <strong id="resumenResueltos">0</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span><i class="bi bi-hourglass-split text-warning me-1"></i> En Curso:</span>
+                                <strong id="resumenEnProgreso">0</strong>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span><i class="bi bi-inbox-fill text-danger me-1"></i> Pendientes:</span>
+                                <strong id="resumenAbiertos">0</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel de Sedes y Pisos -->
+                <div class="col-12 col-lg-4">
+                    <div class="card border-0 shadow-sm rounded-4 p-3 h-100" style="background: var(--admin-card-bg); border: 1px solid var(--admin-border) !important;">
+                        <h6 class="fw-bold mb-3 d-flex align-items-center gap-2" style="color: var(--admin-anthracite);">
+                            <i class="bi bi-geo-alt-fill text-danger"></i> Concentración por Ubicación
+                        </h6>
+                        <div id="listaDistribucionSedes" class="small d-flex flex-column gap-2" style="max-height: 180px; overflow-y: auto;">
+                            <span class="text-muted text-center py-2">Cargando ubicaciones...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Barra de Filtros para Módulo de Reportes -->
+            <div class="filters-bar" id="modulo-reportes">
+                <div class="row g-2 align-items-center">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label small fw-bold text-uppercase text-muted mb-1">Buscar Ticket</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                            <input type="text" id="filtroBuscarTexto" class="form-control border-start-0" placeholder="Buscar por ID, solicitante o problema...">
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small fw-bold text-uppercase text-muted mb-1">Sede</label>
+                        <select id="filtroSede" class="form-select form-select-sm">
+                            <option value="">Todas las Sedes</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small fw-bold text-uppercase text-muted mb-1">Criticidad</label>
+                        <select id="filtroCriticidad" class="form-select form-select-sm">
+                            <option value="">Todas</option>
+                            <option value="Alta">Alta</option>
+                            <option value="Media">Media</option>
+                            <option value="Baja">Baja</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-2">
+                        <label class="form-label small fw-bold text-uppercase text-muted mb-1">Estado</label>
+                        <select id="filtroEstado" class="form-select form-select-sm">
+                            <option value="">Todos</option>
+                            <option value="Abierto">Abierto</option>
+                            <option value="En Progreso">En Progreso</option>
+                            <option value="Resuelto">Resuelto</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla Consolidada de Reportes de Jefatura -->
+            <div class="table-container mb-5">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <h5 class="fw-bold mb-0" style="color: var(--admin-anthracite);">
+                        <i class="bi bi-table me-2 text-warning"></i> Reporte Consolidado de Incidencias & Cumplimiento de SLA
+                    </h5>
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary" id="totalFiltradosBadge">Mostrando 0 tickets</span>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="tablaReportesGerencial">
+                        <thead>
+                            <tr>
+                                <th># ID</th>
+                                <th>Solicitante & Contacto</th>
+                                <th>Sede / Ubicación</th>
+                                <th>Criticidad</th>
+                                <th>Estado</th>
+                                <th>Estado SLA</th>
+                                <th>Fecha Creación</th>
+                                <th class="text-center">Auditoría</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaReportesBody">
+                            <tr>
+                                <td colspan="8" class="text-center py-4 text-muted">
+                                    <div class="spinner-border spinner-border-sm text-warning me-2" role="status"></div>
+                                    Cargando datos ejecutivos desde la API...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Auditoría Ejecutiva de Ticket -->
+    <div class="modal fade" id="modalAuditoriaTicket" tabindex="-1" aria-labelledby="modalAuditoriaTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header border-0 pb-0 pt-4 px-4">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="kpi-icon-wrapper mb-0" style="width: 40px; height: 40px; font-size: 1.2rem;">
+                            <i class="bi bi-clipboard-check-fill"></i>
+                        </div>
+                        <div>
+                            <h5 class="modal-title fw-bold" id="modalAuditoriaTitle">Detalle de Auditoría - Ticket #<span id="auditTicketId">--</span></h5>
+                            <span class="badge-jefatura py-0 px-2" style="font-size: 0.65rem;">Vista Exclusiva de Jefatura</span>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body px-4 py-3">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted text-uppercase">Solicitante</label>
+                            <p class="fw-semibold mb-0" id="auditSolicitante">--</p>
+                            <small class="text-muted" id="auditCorreo">--</small>
+                            <div class="mt-1" id="auditContactoBadges"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted text-uppercase">Ubicación</label>
+                            <p class="fw-semibold mb-0" id="auditUbicacion">--</p>
+                            <small class="text-muted" id="auditPiso">--</small>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted text-uppercase">Criticidad</label>
+                            <p class="mb-0" id="auditCriticidad">--</p>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted text-uppercase">Estado Actual</label>
+                            <p class="mb-0" id="auditEstado">--</p>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted text-uppercase">Estado de SLA</label>
+                            <p class="mb-0" id="auditSla">--</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Descripción del Problema</label>
+                        <div class="p-3 bg-light rounded border small" id="auditDescripcion">--</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Resolución / Comentarios Técnicos</label>
+                        <div class="p-3 bg-light rounded border small" id="auditComentarios">--</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pb-4 px-4">
+                    <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Lógica de la aplicación -->
+    <script src="app.js"></script>
+</body>
+
+</html>

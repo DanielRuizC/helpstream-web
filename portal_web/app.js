@@ -1,5 +1,5 @@
 // ==========================================
-// Protección de Rutas (HU21)
+// Protección de Rutas (HU20 & HU21)
 // Redirige a login.html si no existe helpstream_token en localStorage
 // ==========================================
 (function protegerRuta() {
@@ -9,11 +9,24 @@
 
     if (!token && !esLogin) {
         window.location.replace('login.html');
+        return;
+    }
+
+    // HU20: Restricción estricta en frontend para dashboard_gerencial.html
+    if (token && path.endsWith('dashboard_gerencial.html')) {
+        const rol = localStorage.getItem('helpstream_user_role');
+        const rolId = localStorage.getItem('helpstream_rol_id');
+        if (rol && rol !== 'Jefe de TI' && rolId && rolId !== '3') {
+            alert('Acceso denegado exclusivo para Jefatura. Redirigiendo a la mesa de ayuda...');
+            window.location.replace('index.html');
+        }
     }
 })();
 
-// URL base de producción en Render
-const API_URL = 'https://helpstream-api.onrender.com';
+// URL base de producción en Render o local si se ejecuta en localhost
+const API_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? (window.location.origin)
+    : 'https://helpstream-api.onrender.com';
 
 // Endpoints centralizados de la API
 const ENDPOINTS = {
@@ -22,7 +35,11 @@ const ENDPOINTS = {
     ROLES: `${API_URL}/api/auth/roles`,             // Lista de roles del sistema
     USUARIOS: `${API_URL}/api/auth/usuarios`,       // Lista y gestión de usuarios
     TICKETS: `${API_URL}/tickets/`,
-    VIDEOS: `${API_URL}/videos/`
+    VIDEOS: `${API_URL}/videos/`,
+    REPORTES_DASHBOARD: `${API_URL}/api/reportes/dashboard`, // HU20: Reportes y dashboard gerencial
+    REPORTES_KPIS: `${API_URL}/api/reportes/kpis`,
+    REPORTES_TICKETS: `${API_URL}/api/reportes/tickets`,
+    DASHBOARD_GERENCIAL: `${API_URL}/api/dashboard/gerencial`
 };
 
 let modalInstance = null;
@@ -46,8 +63,8 @@ const SLA_TIEMPOS_HORAS = {
 let slaIntervalId = null;
 
 // ==========================================
-// HU21: Flujo de Autenticación / Inicio de Sesión
-// Endpoint: https://helpstream-api.onrender.com/api/auth/login/local
+// HU21 & HU20: Flujo de Autenticación / Inicio de Sesión
+// Endpoint: /api/auth/login/local
 // ==========================================
 async function iniciarSesion(correo, password) {
     try {
@@ -72,6 +89,9 @@ async function iniciarSesion(correo, password) {
         if (data.access_token) {
             localStorage.setItem('helpstream_token', data.access_token);
             localStorage.setItem('helpstream_token_type', data.token_type || 'bearer');
+            if (data.rol) localStorage.setItem('helpstream_user_role', data.rol);
+            if (data.rol_id) localStorage.setItem('helpstream_rol_id', String(data.rol_id));
+            localStorage.setItem('helpstream_user_email', correo);
         }
         return data;
     } catch (error) {
@@ -84,6 +104,9 @@ async function iniciarSesion(correo, password) {
 function cerrarSesion() {
     localStorage.removeItem('helpstream_token');
     localStorage.removeItem('helpstream_token_type');
+    localStorage.removeItem('helpstream_user_role');
+    localStorage.removeItem('helpstream_rol_id');
+    localStorage.removeItem('helpstream_user_email');
     window.location.replace('login.html');
 }
 
@@ -123,8 +146,33 @@ function inicializarLogin(loginForm) {
         try {
             const data = await iniciarSesion(correo, password);
             if (data && data.access_token) {
-                // Redirigir a index.html tras inicio de sesión exitoso
-                window.location.href = 'index.html';
+                // =========================================================================
+                // HU20: Bifurcación en el Login según el Rol de Usuario
+                // Si es "Jefe de TI", ejecuta window.location.replace('dashboard_gerencial.html')
+                // Si es analista o soporte técnico, mantén window.location.replace('index.html')
+                // =========================================================================
+                let userRole = data.rol || data.rol_nombre;
+                if (!userRole && data.rol_id === 3) {
+                    userRole = 'Jefe de TI';
+                }
+
+                // Respaldo decodificando el JWT si no viniera explícito en el body
+                if (!userRole && data.access_token) {
+                    try {
+                        const payload = JSON.parse(atob(data.access_token.split('.')[1]));
+                        if (payload.rol_id === 3 || payload.rol === 'Jefe de TI' || payload.rol_code === 'jefe_ti') {
+                            userRole = 'Jefe de TI';
+                        }
+                    } catch (err) {
+                        console.warn('No se pudo decodificar payload JWT:', err);
+                    }
+                }
+
+                if (userRole === 'Jefe de TI' || data.rol_id === 3) {
+                    window.location.replace('dashboard_gerencial.html');
+                } else {
+                    window.location.replace('index.html');
+                }
             } else {
                 throw new Error('No se recibió el token de autenticación del servidor.');
             }
@@ -143,6 +191,7 @@ function inicializarLogin(loginForm) {
         }
     });
 }
+
 
 // ==========================================
 // HU11: Creación Rápida de Tickets (con Sede y Piso)
@@ -553,6 +602,11 @@ document.addEventListener("DOMContentLoaded", () => {
     // Inicializar módulo de usuarios si corresponde
     inicializarModuloUsuarios();
 
+    // Inicializar Dashboard Gerencial & Reportes si la vista está presente (HU20)
+    if (document.getElementById('view-gerencial') || document.getElementById('tablaReportesGerencial')) {
+        inicializarDashboardGerencial();
+    }
+
     // Pre-llenar búsqueda si viene parámetro correo en la URL
     const urlParams = new URLSearchParams(window.location.search);
     const correoParam = urlParams.get('correo');
@@ -607,6 +661,28 @@ function inicializarSidebar() {
             toggleSidebar(false);
         }
     });
+
+    // Si el usuario es Jefe de TI y está navegando en páginas operativas, agregar acceso al Dashboard Gerencial
+    const userRole = localStorage.getItem('helpstream_user_role');
+    const rolId = localStorage.getItem('helpstream_rol_id');
+    const esJefe = (userRole === 'Jefe de TI' || rolId === '3');
+    if (esJefe && !window.location.pathname.endsWith('dashboard_gerencial.html')) {
+        const navContainer = document.querySelector('#sidebar .mt-4');
+        const navDashboard = document.getElementById('nav-dashboard');
+        if (navContainer && !document.getElementById('nav-acceso-gerencial')) {
+            const enlaceGerencial = document.createElement('a');
+            enlaceGerencial.href = 'dashboard_gerencial.html';
+            enlaceGerencial.id = 'nav-acceso-gerencial';
+            enlaceGerencial.className = 'nav-link text-decoration-none fw-semibold';
+            enlaceGerencial.style.color = '#ff9248';
+            enlaceGerencial.innerHTML = '<i class="bi bi-speedometer2 text-warning"></i> Dashboard Gerencial';
+            if (navDashboard) {
+                navContainer.insertBefore(enlaceGerencial, navDashboard);
+            } else {
+                navContainer.prepend(enlaceGerencial);
+            }
+        }
+    }
 }
 
 // View Navigation
@@ -1002,35 +1078,457 @@ async function guardarGestion() {
 }
 
 // Carga de Video Tutorial
-document.getElementById('formCargarVideo').addEventListener('submit', async function (event) {
-    event.preventDefault(); 
+const formCargarVideoEl = document.getElementById('formCargarVideo');
+if (formCargarVideoEl) {
+    formCargarVideoEl.addEventListener('submit', async function (event) {
+        event.preventDefault(); 
 
-    const datosVideo = new FormData();
-    datosVideo.append('titulo', document.getElementById('inputTituloVideo').value.trim());
-    datosVideo.append('descripcion', document.getElementById('inputDescripcionVideo').value.trim());
-    datosVideo.append('tags', document.getElementById('inputTagsVideo').value.trim());
-    datosVideo.append('video_file', document.getElementById('inputUrlVideo').files[0]);
+        const datosVideo = new FormData();
+        datosVideo.append('titulo', document.getElementById('inputTituloVideo').value.trim());
+        datosVideo.append('descripcion', document.getElementById('inputDescripcionVideo').value.trim());
+        datosVideo.append('tags', document.getElementById('inputTagsVideo').value.trim());
+        datosVideo.append('video_file', document.getElementById('inputUrlVideo').files[0]);
+
+        try {
+            const respuesta = await fetch(`${API_URL}/videos/`, {
+                method: 'POST',
+                body: datosVideo
+            });
+
+            if (respuesta.ok) {
+                const videoGuardado = await respuesta.json();
+                alert(`¡Éxito! El video "${videoGuardado.titulo}" fue guardado correctamente en la Base de Conocimiento.`);
+                formCargarVideoEl.reset();
+                
+                // Volver al dashboard y limpiar vista (Opcional)
+                switchView('dashboard');
+            } else {
+                const errorData = await respuesta.json();
+                console.error('Error del servidor:', errorData);
+                alert('Hubo un error al intentar guardar el video. Revisa la consola para más detalles.');
+            }
+        } catch (error) {
+            console.error('Error de red:', error);
+            alert('No se pudo conectar con el servidor de HelpStream. Verifica que el backend esté ejecutándose.');
+        }
+    });
+}
+
+// ==========================================
+// HU20: Lógica del Dashboard Gerencial & Reportes Ejecutivos
+// Vista exclusiva para Jefatura de TI (Protegida con 403 en API)
+// ==========================================
+let allGerencialTickets = [];
+let modalAuditoriaInstance = null;
+
+async function inicializarDashboardGerencial() {
+    const modalEl = document.getElementById('modalAuditoriaTicket');
+    if (modalEl && typeof bootstrap !== 'undefined') {
+        modalAuditoriaInstance = new bootstrap.Modal(modalEl);
+    }
+
+    // Actualizar nombre y rol en cabecera si existe
+    const adminEmail = localStorage.getItem('helpstream_user_email');
+    const headerNombre = document.getElementById('headerAdminNombre');
+    if (adminEmail && headerNombre) {
+        const usernamePart = adminEmail.split('@')[0];
+        const capitalName = usernamePart.charAt(0).toUpperCase() + usernamePart.slice(1);
+        headerNombre.textContent = capitalName.toLowerCase().includes('jefe') ? 'Carlos Mendoza (Jefe TI)' : capitalName;
+    }
+
+    // Configurar listeners de filtros
+    const inputBuscar = document.getElementById('filtroBuscarTexto');
+    const selectSede = document.getElementById('filtroSede');
+    const selectCrit = document.getElementById('filtroCriticidad');
+    const selectEstado = document.getElementById('filtroEstado');
+    const btnRecargar = document.getElementById('btnRecargarDashboard');
+    const btnExportar = document.getElementById('btnExportarCSV');
+
+    if (inputBuscar) inputBuscar.addEventListener('input', filtrarReportesGerenciales);
+    if (selectSede) selectSede.addEventListener('change', filtrarReportesGerenciales);
+    if (selectCrit) selectCrit.addEventListener('change', filtrarReportesGerenciales);
+    if (selectEstado) selectEstado.addEventListener('change', filtrarReportesGerenciales);
+
+    if (btnRecargar) {
+        btnRecargar.addEventListener('click', () => {
+            btnRecargar.disabled = true;
+            btnRecargar.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Actualizando...';
+            cargarReportesGerenciales().finally(() => {
+                btnRecargar.disabled = false;
+                btnRecargar.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> Actualizar Métricas';
+            });
+        });
+    }
+
+    if (btnExportar) {
+        btnExportar.addEventListener('click', exportarReportesCSV);
+    }
+
+    await cargarReportesGerenciales();
+}
+
+async function cargarReportesGerenciales() {
+    const alertBox = document.getElementById('gerencialAlert');
+    const alertMsg = document.getElementById('gerencialAlertMsg');
+    const token = localStorage.getItem('helpstream_token');
 
     try {
-        const respuesta = await fetch(`${API_URL}/videos/`, {
-            method: 'POST',
-            body: datosVideo
-        });
-
-        if (respuesta.ok) {
-            const videoGuardado = await respuesta.json();
-            alert(`¡Éxito! El video "${videoGuardado.titulo}" fue guardado correctamente en la Base de Conocimiento.`);
-            document.getElementById('formCargarVideo').reset();
-            
-            // Volver al dashboard y limpiar vista (Opcional)
-            switchView('dashboard');
-        } else {
-            const errorData = await respuesta.json();
-            console.error('Error del servidor:', errorData);
-            alert('Hubo un error al intentar guardar el video. Revisa la consola para más detalles.');
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
         }
+
+        const response = await fetch(ENDPOINTS.REPORTES_DASHBOARD, { headers });
+
+        if (response.status === 403) {
+            const errData = await response.json().catch(() => ({}));
+            const mensaje = errData.detail || 'Acceso denegado exclusivo para Jefatura';
+            if (alertBox && alertMsg) {
+                alertMsg.textContent = `${mensaje}. Redirigiendo a su portal operativo...`;
+                alertBox.className = 'alert alert-danger mb-4 py-2 px-3 small';
+                alertBox.classList.remove('d-none');
+            }
+            alert(mensaje);
+            window.location.replace('index.html');
+            return;
+        }
+
+        if (!response.ok) {
+            throw new Error(`Error en servidor (${response.status})`);
+        }
+
+        const data = await response.json();
+        allGerencialTickets = data.tickets || [];
+
+        // 1. Actualizar KPIs Principales
+        const kpis = data.kpis || {};
+        const slaPct = kpis.cumplimiento_sla_porcentaje !== undefined ? kpis.cumplimiento_sla_porcentaje : 100;
+        
+        const elSla = document.getElementById('kpiSlaPorcentaje');
+        if (elSla) elSla.textContent = `${slaPct}%`;
+        
+        const elSlaBar = document.getElementById('kpiSlaProgressBar');
+        if (elSlaBar) {
+            elSlaBar.style.width = `${slaPct}%`;
+            elSlaBar.setAttribute('aria-valuenow', slaPct);
+        }
+
+        const elSlaSub = document.getElementById('kpiSlaSubtext');
+        if (elSlaSub) {
+            elSlaSub.textContent = `${kpis.tickets_dentro_sla || 0} dentro de tiempo (${kpis.tickets_vencidos_sla || 0} vencidos)`;
+        }
+
+        const elTotal = document.getElementById('kpiTotalTickets');
+        if (elTotal) elTotal.textContent = kpis.total_tickets || 0;
+
+        const elAbiertos = document.getElementById('kpiAbiertos');
+        if (elAbiertos) elAbiertos.textContent = `${kpis.abiertos || 0} Abiertos`;
+        const elEnProg = document.getElementById('kpiEnProgreso');
+        if (elEnProg) elEnProg.textContent = `${kpis.en_progreso || 0} En Progreso`;
+        const elResueltos = document.getElementById('kpiResueltos');
+        if (elResueltos) elResueltos.textContent = `${kpis.resueltos || 0} Resueltos`;
+
+        const elCriticos = document.getElementById('kpiCriticosPendientes');
+        if (elCriticos) elCriticos.textContent = kpis.criticos_pendientes || 0;
+
+        const elAutoatencion = document.getElementById('kpiAutoatencion');
+        if (elAutoatencion) elAutoatencion.textContent = kpis.autoatencion_resueltos || 0;
+
+        // 2. Tasa de resolución
+        const tasaRes = kpis.tasa_resolucion_porcentaje || 0;
+        const elTasaRes = document.getElementById('kpiTasaResolucion');
+        if (elTasaRes) elTasaRes.textContent = `${tasaRes}%`;
+        const elTasaBar = document.getElementById('barTasaResolucion');
+        if (elTasaBar) elTasaBar.style.width = `${tasaRes}%`;
+
+        const elResumenR = document.getElementById('resumenResueltos');
+        if (elResumenR) elResumenR.textContent = kpis.resueltos || 0;
+        const elResumenP = document.getElementById('resumenEnProgreso');
+        if (elResumenP) elResumenP.textContent = kpis.en_progreso || 0;
+        const elResumenA = document.getElementById('resumenAbiertos');
+        if (elResumenA) elResumenA.textContent = kpis.abiertos || 0;
+
+        // 3. Distribución por Criticidad
+        const total = kpis.total_tickets || 1;
+        const distCrit = (data.distribucion && data.distribucion.por_criticidad) ? data.distribucion.por_criticidad : {};
+        const cAlta = distCrit.Alta || 0;
+        const cMedia = distCrit.Media || 0;
+        const cBaja = distCrit.Baja || 0;
+
+        const pctAlta = Math.round((cAlta / total) * 100);
+        const pctMedia = Math.round((cMedia / total) * 100);
+        const pctBaja = Math.round((cBaja / total) * 100);
+
+        const elCritAlta = document.getElementById('distCritAlta');
+        if (elCritAlta) elCritAlta.textContent = `${cAlta} (${pctAlta}%)`;
+        const elCritAltaBar = document.getElementById('distCritAltaBar');
+        if (elCritAltaBar) elCritAltaBar.style.width = `${pctAlta}%`;
+
+        const elCritMedia = document.getElementById('distCritMedia');
+        if (elCritMedia) elCritMedia.textContent = `${cMedia} (${pctMedia}%)`;
+        const elCritMediaBar = document.getElementById('distCritMediaBar');
+        if (elCritMediaBar) elCritMediaBar.style.width = `${pctMedia}%`;
+
+        const elCritBaja = document.getElementById('distCritBaja');
+        if (elCritBaja) elCritBaja.textContent = `${cBaja} (${pctBaja}%)`;
+        const elCritBajaBar = document.getElementById('distCritBajaBar');
+        if (elCritBajaBar) elCritBajaBar.style.width = `${pctBaja}%`;
+
+        // 4. Distribución por Sedes y poblar select
+        const distSedes = (data.distribucion && data.distribucion.por_sede) ? data.distribucion.por_sede : {};
+        const listaSedesEl = document.getElementById('listaDistribucionSedes');
+        const selectSede = document.getElementById('filtroSede');
+
+        if (listaSedesEl) {
+            listaSedesEl.innerHTML = '';
+            const sedesKeys = Object.keys(distSedes);
+            if (sedesKeys.length === 0) {
+                listaSedesEl.innerHTML = '<span class="text-muted small">No hay sedes registradas.</span>';
+            } else {
+                sedesKeys.forEach(sedeNombre => {
+                    const cnt = distSedes[sedeNombre];
+                    const item = document.createElement('div');
+                    item.className = 'd-flex justify-content-between align-items-center p-2 rounded bg-light border';
+                    item.innerHTML = `
+                        <span class="fw-semibold text-truncate" style="max-width: 75%;"><i class="bi bi-geo-alt text-danger me-1"></i> ${sedeNombre}</span>
+                        <span class="badge bg-secondary">${cnt} tickets</span>
+                    `;
+                    listaSedesEl.appendChild(item);
+                });
+            }
+        }
+
+        if (selectSede) {
+            const currentVal = selectSede.value;
+            selectSede.innerHTML = '<option value="">Todas las Sedes</option>';
+            Object.keys(distSedes).forEach(sedeNombre => {
+                if (sedeNombre && sedeNombre !== 'Sin Sede Asignada') {
+                    const opt = document.createElement('option');
+                    opt.value = sedeNombre;
+                    opt.textContent = sedeNombre;
+                    selectSede.appendChild(opt);
+                }
+            });
+            selectSede.value = currentVal;
+        }
+
+        // 5. Renderizar Tabla de Reportes
+        filtrarReportesGerenciales();
+
+        if (alertBox) alertBox.classList.add('d-none');
     } catch (error) {
-        console.error('Error de red:', error);
-        alert('No se pudo conectar con el servidor de HelpStream. Verifica que el backend esté ejecutándose.');
+        console.error('Error al cargar reportes gerenciales:', error);
+        if (alertBox && alertMsg) {
+            alertMsg.textContent = 'Error al cargar los datos del dashboard gerencial desde la API.';
+            alertBox.className = 'alert alert-danger mb-4 py-2 px-3 small';
+            alertBox.classList.remove('d-none');
+        }
     }
-});
+}
+
+function filtrarReportesGerenciales() {
+    const txtBuscar = (document.getElementById('filtroBuscarTexto') ? document.getElementById('filtroBuscarTexto').value : '').toLowerCase().trim();
+    const sede = document.getElementById('filtroSede') ? document.getElementById('filtroSede').value : '';
+    const criticidad = document.getElementById('filtroCriticidad') ? document.getElementById('filtroCriticidad').value : '';
+    const estado = document.getElementById('filtroEstado') ? document.getElementById('filtroEstado').value : '';
+
+    const filtrados = allGerencialTickets.filter(t => {
+        if (sede && (t.sede || '').toLowerCase() !== sede.toLowerCase()) return false;
+        if (criticidad && (t.criticidad || '').toLowerCase() !== criticidad.toLowerCase()) return false;
+        if (estado && (t.estado || '').toLowerCase() !== estado.toLowerCase()) return false;
+
+        if (txtBuscar) {
+            const idMatch = String(t.id).includes(txtBuscar);
+            const descMatch = (t.descripcion || '').toLowerCase().includes(txtBuscar);
+            const solicitanteMatch = (t.solicitante || '').toLowerCase().includes(txtBuscar);
+            const correoMatch = (t.correo_solicitante || '').toLowerCase().includes(txtBuscar);
+            const sedeMatch = (t.sede || '').toLowerCase().includes(txtBuscar);
+            if (!idMatch && !descMatch && !solicitanteMatch && !correoMatch && !sedeMatch) return false;
+        }
+
+        return true;
+    });
+
+    const badgeTotal = document.getElementById('totalFiltradosBadge');
+    if (badgeTotal) badgeTotal.textContent = `Mostrando ${filtrados.length} de ${allGerencialTickets.length} tickets`;
+
+    renderizarTablaReportes(filtrados);
+}
+
+function renderizarTablaReportes(tickets) {
+    const tbody = document.getElementById('tablaReportesBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+    if (tickets.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No se encontraron tickets con los filtros seleccionados.</td></tr>';
+        return;
+    }
+
+    tickets.forEach(t => {
+        const tr = document.createElement('tr');
+
+        // Estado SLA Badge
+        let badgeSlaHtml = '';
+        if (t.estado_sla === 'Cumplido') {
+            badgeSlaHtml = '<span class="badge-sla-cumplido"><i class="bi bi-check-circle-fill me-1"></i> Cumplido</span>';
+        } else if (t.estado_sla === 'Vencido') {
+            badgeSlaHtml = '<span class="badge-sla-vencido"><i class="bi bi-x-circle-fill me-1"></i> Vencido</span>';
+        } else if (t.estado_sla === 'En Riesgo') {
+            badgeSlaHtml = `<span class="badge-sla-riesgo"><i class="bi bi-exclamation-triangle-fill me-1"></i> En Riesgo (${t.horas_restantes}h)</span>`;
+        } else {
+            badgeSlaHtml = `<span class="badge-sla-normal"><i class="bi bi-clock-fill me-1"></i> ${t.horas_restantes}h restantes</span>`;
+        }
+
+        // Criticidad Badge
+        let critBadge = '<span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25">Media</span>';
+        if (t.criticidad === 'Alta') {
+            critBadge = '<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 fw-bold">Alta</span>';
+        } else if (t.criticidad === 'Baja') {
+            critBadge = '<span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25">Baja</span>';
+        }
+
+        // Estado Ticket Badge
+        let estadoBadge = '<span class="badge bg-secondary">Abierto</span>';
+        if (t.estado === 'En Progreso') {
+            estadoBadge = '<span class="badge bg-warning text-dark">En Progreso</span>';
+        } else if (t.estado === 'Resuelto') {
+            estadoBadge = '<span class="badge bg-success">Resuelto</span>';
+        }
+
+        // Fecha creación formateada
+        let fechaStr = '-';
+        if (t.fecha_creacion) {
+            try {
+                const f = new Date(t.fecha_creacion);
+                fechaStr = f.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            } catch (e) {
+                fechaStr = t.fecha_creacion;
+            }
+        }
+
+        // Ubicación
+        const ubicacionStr = t.piso && t.piso !== '-' ? `${t.sede} (${t.piso})` : t.sede;
+
+        tr.innerHTML = `
+            <td class="fw-bold" style="color: var(--admin-anthracite);">#${t.id}</td>
+            <td>
+                <div class="fw-semibold">${t.solicitante || 'Usuario'}</div>
+                <small class="text-muted">${t.correo_solicitante || '-'}</small>
+                ${(t.telefono || t.anexo) ? `<div><span class="badge bg-light text-dark border small" style="font-size: 0.68rem;"><i class="bi bi-telephone me-1"></i>${t.telefono || '-'} (Anexo: ${t.anexo || '-'})</span></div>` : ''}
+            </td>
+            <td>
+                <span class="small fw-semibold text-secondary"><i class="bi bi-geo-alt me-1"></i>${ubicacionStr}</span>
+            </td>
+            <td>${critBadge}</td>
+            <td>${estadoBadge}</td>
+            <td>${badgeSlaHtml}</td>
+            <td class="small text-muted">${fechaStr}</td>
+            <td class="text-center">
+                <button class="btn btn-sm btn-outline-burnt-orange rounded-pill px-3" onclick="abrirModalAuditoria(${t.id})">
+                    <i class="bi bi-search"></i> Auditar
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(tr);
+    });
+}
+
+function abrirModalAuditoria(ticketId) {
+    const t = allGerencialTickets.find(item => item.id === ticketId);
+    if (!t) return;
+
+    const elId = document.getElementById('auditTicketId');
+    if (elId) elId.textContent = t.id;
+
+    const elSol = document.getElementById('auditSolicitante');
+    if (elSol) elSol.textContent = t.solicitante || 'Usuario Solicitante';
+
+    const elCorreo = document.getElementById('auditCorreo');
+    if (elCorreo) elCorreo.textContent = t.correo_solicitante || '-';
+
+    const elBadges = document.getElementById('auditContactoBadges');
+    if (elBadges) {
+        elBadges.innerHTML = `
+            <span class="badge bg-light text-dark border me-1"><i class="bi bi-telephone-fill text-muted me-1"></i>${t.telefono || 'Sin teléfono'}</span>
+            <span class="badge bg-light text-dark border"><i class="bi bi-building text-muted me-1"></i>Anexo: ${t.anexo || '-'}</span>
+        `;
+    }
+
+    const elUbi = document.getElementById('auditUbicacion');
+    if (elUbi) elUbi.textContent = t.sede || 'No especificada';
+
+    const elPiso = document.getElementById('auditPiso');
+    if (elPiso) elPiso.textContent = t.piso ? `Área/Piso: ${t.piso}` : 'Piso: No aplica / No especificado';
+
+    const elCrit = document.getElementById('auditCriticidad');
+    if (elCrit) elCrit.innerHTML = `<span class="badge bg-dark">${t.criticidad} (Límite: ${t.sla_limite_horas}h)</span>`;
+
+    const elEst = document.getElementById('auditEstado');
+    if (elEst) elEst.innerHTML = `<span class="badge bg-primary">${t.estado}</span>`;
+
+    const elSla = document.getElementById('auditSla');
+    if (elSla) {
+        if (t.estado_sla === 'Cumplido') {
+            elSla.innerHTML = '<span class="badge-sla-cumplido">Cumplido en tiempo</span>';
+        } else if (t.estado_sla === 'Vencido') {
+            elSla.innerHTML = '<span class="badge-sla-vencido">Vencido fuera de SLA</span>';
+        } else {
+            elSla.innerHTML = `<span class="badge-sla-normal">${t.horas_restantes} horas restantes</span>`;
+        }
+    }
+
+    const elDesc = document.getElementById('auditDescripcion');
+    if (elDesc) elDesc.textContent = t.descripcion || 'Sin descripción detallada.';
+
+    const elCom = document.getElementById('auditComentarios');
+    if (elCom) {
+        if (t.es_autoatencion) {
+            elCom.innerHTML = `<span class="badge bg-info text-dark mb-1"><i class="bi bi-play-circle-fill me-1"></i> Resuelto con Microaprendizaje</span><p class="mb-0">El usuario resolvió el incidente utilizando los videos tutoriales de la Base de Conocimiento.</p>`;
+        } else {
+            elCom.textContent = t.comentario_tecnico || 'Sin comentarios técnicos registrados por el analista aún.';
+        }
+    }
+
+    if (modalAuditoriaInstance) {
+        modalAuditoriaInstance.show();
+    }
+}
+
+function exportarReportesCSV() {
+    if (!allGerencialTickets || allGerencialTickets.length === 0) {
+        alert('No hay datos disponibles para exportar.');
+        return;
+    }
+
+    const encabezados = ['ID', 'Solicitante', 'Correo', 'Telefono', 'Anexo', 'Sede', 'Piso', 'Criticidad', 'Estado', 'Estado_SLA', 'Horas_Restantes', 'Fecha_Creacion', 'Descripcion'];
+    const filas = allGerencialTickets.map(t => [
+        t.id,
+        `"${(t.solicitante || '').replace(/"/g, '""')}"`,
+        `"${(t.correo_solicitante || '').replace(/"/g, '""')}"`,
+        `"${(t.telefono || '').replace(/"/g, '""')}"`,
+        `"${(t.anexo || '').replace(/"/g, '""')}"`,
+        `"${(t.sede || '').replace(/"/g, '""')}"`,
+        `"${(t.piso || '').replace(/"/g, '""')}"`,
+        t.criticidad,
+        t.estado,
+        t.estado_sla,
+        t.horas_restantes,
+        t.fecha_creacion,
+        `"${(t.descripcion || '').replace(/"/g, '""')}"`
+    ]);
+
+    const csvContent = '\uFEFF' + [encabezados.join(','), ...filas.map(f => f.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `HelpStream_Reporte_Ejecutivo_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
