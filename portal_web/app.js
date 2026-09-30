@@ -40,7 +40,8 @@ const ENDPOINTS = {
     REPORTES_KPIS: `${API_URL}/api/reportes/kpis`,
     REPORTES_TICKETS: `${API_URL}/api/reportes/tickets`,
     DASHBOARD_GERENCIAL: `${API_URL}/api/dashboard/gerencial`,
-    REPORTES_EXCEL: `${API_URL}/api/reportes/exportar/excel` // HU15.3: Exportación nativa a Excel
+    REPORTES_EXCEL: `${API_URL}/api/reportes/exportar/excel`, // HU15.3: Exportación nativa a Excel
+    ANALYTICS_DASHBOARD: `${API_URL}/api/analytics/dashboard` // HU15: HelpStream Analytics
 };
 
 let modalInstance = null;
@@ -1170,6 +1171,35 @@ async function inicializarDashboardGerencial() {
         btnExportarExcel.addEventListener('click', exportarReportesExcel);
     }
 
+    // Configuración de controles del Módulo HelpStream Analytics (HU15)
+    const btnFiltrarAnalytics = document.getElementById('btnAplicarFiltrosAnalytics');
+    const selectAnioAnalytics = document.getElementById('analyticsSelectAnio');
+    const btnResetAnalytics = document.getElementById('btnResetFiltrosAnalytics');
+
+    if (btnFiltrarAnalytics) {
+        btnFiltrarAnalytics.addEventListener('click', cargarAnalyticsDashboard);
+    }
+
+    if (selectAnioAnalytics) {
+        selectAnioAnalytics.addEventListener('change', cargarAnalyticsDashboard);
+    }
+
+    if (btnResetAnalytics) {
+        btnResetAnalytics.addEventListener('click', () => {
+            const fi = document.getElementById('analyticsFechaInicio');
+            const ff = document.getElementById('analyticsFechaFin');
+            if (fi) fi.value = '';
+            if (ff) ff.value = '';
+            if (selectAnioAnalytics) selectAnioAnalytics.value = '';
+            cargarAnalyticsDashboard();
+        });
+    }
+
+    // Si la URL solicita Analytics (#view-analytics o #analytics), cambiar de vista
+    if (window.location.hash === '#view-analytics' || window.location.hash === '#analytics') {
+        cambiarVistaGerencial('analytics');
+    }
+
     await cargarReportesGerenciales();
 }
 
@@ -1559,9 +1589,19 @@ async function exportarReportesExcel() {
     }
 
     try {
-        const urlEndpoint = (typeof ENDPOINTS !== 'undefined' && ENDPOINTS.REPORTES_EXCEL)
+        let urlEndpoint = (typeof ENDPOINTS !== 'undefined' && ENDPOINTS.REPORTES_EXCEL)
             ? ENDPOINTS.REPORTES_EXCEL
             : `${API_URL}/api/reportes/exportar/excel`;
+
+        // HU15.3: Enviar parámetros de fecha actuales si están definidos en los controles
+        const fi = document.getElementById('analyticsFechaInicio')?.value;
+        const ff = document.getElementById('analyticsFechaFin')?.value;
+        const params = new URLSearchParams();
+        if (fi) params.append('fecha_inicio', fi);
+        if (ff) params.append('fecha_fin', ff);
+        if (params.toString()) {
+            urlEndpoint += (urlEndpoint.includes('?') ? '&' : '?') + params.toString();
+        }
 
         const response = await fetch(urlEndpoint, {
             method: 'GET',
@@ -1601,5 +1641,352 @@ async function exportarReportesExcel() {
             btnExcel.innerHTML = originalContent;
         }
     }
+}
+
+// ==========================================
+// HU15: Lógica del Módulo HelpStream Analytics
+// Métricas Dinámicas, Chart.js, Heatmap y Resumen Mensual
+// ==========================================
+
+let chartSoporteVsAutoatencionInstance = null;
+let chartTopIncidentesInstance = null;
+
+function cambiarVistaGerencial(vista) {
+    const viewGerencial = document.getElementById('view-gerencial');
+    const viewAnalytics = document.getElementById('view-analytics');
+    const navGerencial = document.getElementById('nav-gerencial');
+    const navAnalytics = document.getElementById('nav-analytics');
+
+    if (vista === 'analytics') {
+        if (viewGerencial) viewGerencial.classList.add('d-none');
+        if (viewAnalytics) viewAnalytics.classList.remove('d-none');
+        if (navGerencial) navGerencial.classList.remove('active');
+        if (navAnalytics) navAnalytics.classList.add('active');
+        window.location.hash = '#view-analytics';
+        cargarAnalyticsDashboard();
+    } else {
+        if (viewAnalytics) viewAnalytics.classList.add('d-none');
+        if (viewGerencial) viewGerencial.classList.remove('d-none');
+        if (navAnalytics) navAnalytics.classList.remove('active');
+        if (navGerencial) navGerencial.classList.add('active');
+        window.location.hash = '';
+    }
+
+    if (window.innerWidth < 992 && document.body.classList.contains('sidebar-open')) {
+        toggleSidebar(false);
+    }
+}
+
+async function cargarAnalyticsDashboard() {
+    const token = localStorage.getItem('helpstream_token');
+    if (!token) return;
+
+    const alertBox = document.getElementById('analyticsAlert');
+    const alertMsg = document.getElementById('analyticsAlertMsg');
+    const btnFiltrar = document.getElementById('btnAplicarFiltrosAnalytics');
+
+    const inputInicio = document.getElementById('analyticsFechaInicio');
+    const inputFin = document.getElementById('analyticsFechaFin');
+    const selectAnio = document.getElementById('analyticsSelectAnio');
+
+    const fechaInicio = inputInicio ? inputInicio.value : '';
+    const fechaFin = inputFin ? inputFin.value : '';
+    const anio = selectAnio ? selectAnio.value : '';
+
+    if (btnFiltrar) {
+        btnFiltrar.disabled = true;
+        btnFiltrar.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Actualizando...';
+    }
+
+    try {
+        const params = new URLSearchParams();
+        if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+        if (fechaFin) params.append('fecha_fin', fechaFin);
+        if (anio) params.append('anio', anio);
+
+        let url = `${ENDPOINTS.ANALYTICS_DASHBOARD || (API_URL + '/api/analytics/dashboard')}`;
+        if (params.toString()) {
+            url += `?${params.toString()}`;
+        }
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 403) {
+                if (alertBox && alertMsg) {
+                    alertBox.className = 'alert alert-danger mb-4 py-2 px-3 small';
+                    alertMsg.textContent = 'Acceso denegado exclusivo para Jefatura de TI (403 Forbidden).';
+                    alertBox.classList.remove('d-none');
+                }
+                return;
+            }
+            throw new Error(`Error en servidor: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // 1. Poblar select de años dinámicamente si no tiene opciones aún
+        if (selectAnio && selectAnio.options.length <= 1 && data.anios_disponibles) {
+            data.anios_disponibles.forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a;
+                opt.textContent = a;
+                selectAnio.appendChild(opt);
+            });
+            if (data.filtros_aplicados && data.filtros_aplicados.anio && !selectAnio.value) {
+                selectAnio.value = data.filtros_aplicados.anio;
+            }
+        }
+
+        // 2. Actualizar tarjetas de KPIs
+        const kpis = data.kpis || {};
+        const elHoras = document.getElementById('kpiHorasAhorradas');
+        const elSubHoras = document.getElementById('kpiSubtextHoras');
+        const elMttr = document.getElementById('kpiMttr');
+        const elFcr = document.getElementById('kpiFcr');
+        const elReabiertos = document.getElementById('kpiReabiertos');
+        const elSubReabiertos = document.getElementById('kpiSubtextReabiertos');
+
+        if (elHoras) elHoras.textContent = `${kpis.horas_ahorradas ?? 0} hrs`;
+        if (elSubHoras) elSubHoras.textContent = `Autoatención HU15.1 (${kpis.tickets_autoatencion ?? 0} tickets)`;
+        if (elMttr) elMttr.textContent = `${kpis.mttr_horas ?? 0} hrs`;
+        if (elFcr) elFcr.textContent = `${kpis.fcr_porcentaje ?? 0}%`;
+        if (elReabiertos) elReabiertos.textContent = `${kpis.ratio_reabiertos_porcentaje ?? 0}%`;
+        if (elSubReabiertos) elSubReabiertos.textContent = `${kpis.tickets_reabiertos ?? 0} tickets con reapertura`;
+
+        // 3. Renderizar Gráficos con Chart.js
+        if (data.graficos) {
+            renderChartSoporteVsAutoatencion(data.graficos.soporte_vs_autoatencion);
+            renderChartTopIncidentes(data.graficos.top_incidentes_recurrentes);
+            renderMapaCalor(data.graficos.mapa_calor);
+        }
+
+        // 4. Renderizar Resumen Mensual
+        if (data.resumen_mensual) {
+            renderResumenMensual(data.resumen_mensual, data.filtros_aplicados?.anio);
+        }
+
+        if (alertBox) alertBox.classList.add('d-none');
+    } catch (err) {
+        console.error('Error al cargar HelpStream Analytics:', err);
+        if (alertBox && alertMsg) {
+            alertBox.className = 'alert alert-danger mb-4 py-2 px-3 small';
+            alertMsg.textContent = 'No se pudieron sincronizar las métricas dinámicas de Analytics.';
+            alertBox.classList.remove('d-none');
+        }
+    } finally {
+        if (btnFiltrar) {
+            btnFiltrar.disabled = false;
+            btnFiltrar.innerHTML = '<i class="bi bi-funnel-fill me-1"></i> Aplicar Filtros';
+        }
+    }
+}
+
+function renderChartSoporteVsAutoatencion(serieData) {
+    const canvas = document.getElementById('chartSoporteVsAutoatencion');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    if (chartSoporteVsAutoatencionInstance) {
+        chartSoporteVsAutoatencionInstance.destroy();
+        chartSoporteVsAutoatencionInstance = null;
+    }
+
+    const labels = serieData ? serieData.labels : [];
+    const soporte = serieData ? serieData.soporte_tecnico : [];
+    const autoatencion = serieData ? serieData.autoatencion : [];
+
+    chartSoporteVsAutoatencionInstance = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Soporte Técnico',
+                    data: soporte,
+                    backgroundColor: '#d35400',
+                    borderColor: '#b84500',
+                    borderWidth: 1,
+                    borderRadius: 6
+                },
+                {
+                    label: 'Autoatención (HU15.1/2)',
+                    data: autoatencion,
+                    backgroundColor: '#107c41',
+                    borderColor: '#0b5a2f',
+                    borderWidth: 1,
+                    borderRadius: 6
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        boxWidth: 14,
+                        font: { family: 'Inter', weight: 600 }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y} incidencias`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: { precision: 0 },
+                    grid: { color: 'rgba(0,0,0,0.05)' }
+                }
+            }
+        }
+    });
+}
+
+function renderChartTopIncidentes(topData) {
+    const canvas = document.getElementById('chartTopIncidentes');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    if (chartTopIncidentesInstance) {
+        chartTopIncidentesInstance.destroy();
+        chartTopIncidentesInstance = null;
+    }
+
+    const items = topData || [];
+    const labels = items.map(i => i.categoria);
+    const dataVals = items.map(i => i.total);
+
+    const colors = [
+        '#d35400',
+        '#22272e',
+        '#107c41',
+        '#e67e22',
+        '#57606a'
+    ];
+
+    chartTopIncidentesInstance = new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: dataVals,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 2,
+                borderColor: '#ffffff',
+                hoverOffset: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        boxWidth: 12,
+                        font: { size: 11, family: 'Inter' }
+                    }
+                }
+            },
+            cutout: '62%'
+        }
+    });
+}
+
+function renderMapaCalor(mapaData) {
+    const headerRow = document.getElementById('heatmapHeaderRow');
+    const tbody = document.getElementById('heatmapBody');
+    if (!headerRow || !tbody || !mapaData) return;
+
+    headerRow.innerHTML = '<th style="min-width: 110px;">Día</th>';
+    mapaData.rangos.forEach(rango => {
+        const th = document.createElement('th');
+        th.textContent = rango;
+        headerRow.appendChild(th);
+    });
+
+    tbody.innerHTML = '';
+    const maxVal = mapaData.max_valor || 1;
+
+    mapaData.datos.forEach(item => {
+        const tr = document.createElement('tr');
+        const tdDia = document.createElement('td');
+        tdDia.className = 'fw-bold text-start ps-3';
+        tdDia.style.color = 'var(--admin-anthracite)';
+        tdDia.textContent = item.dia;
+        tr.appendChild(tdDia);
+
+        item.valores.forEach((val, idx) => {
+            const td = document.createElement('td');
+            const rangoNombre = mapaData.rangos[idx];
+            td.className = 'heatmap-cell';
+
+            if (val > 0) {
+                const ratio = Math.min(1, val / maxVal);
+                const bgAlpha = (0.15 + (ratio * 0.85)).toFixed(2);
+                td.style.backgroundColor = `rgba(211, 84, 0, ${bgAlpha})`;
+                td.style.color = ratio > 0.45 ? '#ffffff' : 'var(--admin-anthracite)';
+                td.textContent = val;
+            } else {
+                td.style.backgroundColor = '#fbfcfd';
+                td.style.color = '#94a3b8';
+                td.textContent = '0';
+            }
+
+            td.setAttribute('title', `${item.dia} (${rangoNombre}): ${val} tickets`);
+            tr.appendChild(td);
+        });
+
+        tbody.appendChild(tr);
+    });
+}
+
+function renderResumenMensual(resumenData, anio) {
+    const tbody = document.getElementById('resumenMensualBody');
+    const badgeAnio = document.getElementById('badgeAnioResumen');
+    if (badgeAnio && anio) {
+        badgeAnio.textContent = `Año ${anio}`;
+    }
+    if (!tbody || !resumenData) return;
+
+    tbody.innerHTML = '';
+    if (resumenData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No hay datos mensuales registrados para el año seleccionado.</td></tr>';
+        return;
+    }
+
+    resumenData.forEach(m => {
+        const tr = document.createElement('tr');
+
+        let slaBadgeClass = 'badge bg-success';
+        if (m.cumplimiento_sla_porcentaje < 75) {
+            slaBadgeClass = 'badge bg-danger';
+        } else if (m.cumplimiento_sla_porcentaje < 90) {
+            slaBadgeClass = 'badge bg-warning text-dark';
+        }
+
+        tr.innerHTML = `
+            <td class="fw-semibold">${m.mes}</td>
+            <td class="text-center text-muted">${m.anio}</td>
+            <td class="text-center fw-bold">${m.total_atenciones}</td>
+            <td class="text-center text-success fw-bold">${m.incidentes_resueltos}</td>
+            <td class="text-center">
+                <span class="${slaBadgeClass} px-2 py-1">${m.cumplimiento_sla_porcentaje}%</span>
+            </td>
+            <td class="text-center text-burnt-orange fw-bold">${m.horas_ahorradas} hrs</td>
+        `;
+        tbody.appendChild(tr);
+    });
 }
 

@@ -242,21 +242,37 @@ def get_reportes_tickets(
 
 @router.get("/exportar/excel")
 def exportar_reportes_excel(
+    fecha_inicio: Optional[str] = Query(None, description="Fecha de inicio (YYYY-MM-DD)"),
+    fecha_fin: Optional[str] = Query(None, description="Fecha de fin (YYYY-MM-DD)"),
     db: Session = Depends(get_db),
     admin_user: models.Usuario = Depends(get_current_admin_user)
 ):
     """
     HU15.3: Exportación nativa de incidencias a Excel (.xlsx).
-    Consulta todos los tickets de la base de datos con sus relaciones de usuario,
+    Consulta los tickets de la base de datos aplicando filtros opcionales de período (fecha_inicio, fecha_fin),
     construye un archivo Excel en memoria con formato tabular y cabeceras en negrita,
     y lo retorna mediante StreamingResponse con nombre 'reporte_incidencias.xlsx'.
     """
-    results = (
+    query = (
         db.query(models.Ticket, models.Usuario)
         .outerjoin(models.Usuario, models.Ticket.usuario_id == models.Usuario.id)
-        .order_by(models.Ticket.id.desc())
-        .all()
     )
+
+    if fecha_inicio:
+        try:
+            dt_inicio = datetime.strptime(fecha_inicio.strip(), "%Y-%m-%d")
+            query = query.filter(models.Ticket.fecha_creacion >= dt_inicio)
+        except ValueError:
+            pass
+
+    if fecha_fin:
+        try:
+            dt_fin = datetime.strptime(fecha_fin.strip(), "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+            query = query.filter(models.Ticket.fecha_creacion <= dt_fin)
+        except ValueError:
+            pass
+
+    results = query.order_by(models.Ticket.id.desc()).all()
 
     wb = Workbook()
     ws = wb.active

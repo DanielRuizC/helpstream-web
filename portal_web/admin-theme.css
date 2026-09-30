@@ -367,3 +367,63 @@ body.admin-executive-body {
         box-shadow: none !important;
     }
 }
+
+/* ==========================================
+   7. MÓDULO HELPSTREAM ANALYTICS (HU15)
+   ========================================== */
+.executive-filter-card {
+    background: var(--admin-card-bg);
+    border: 1px solid var(--admin-border);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.executive-input {
+    border-color: #d0d7de !important;
+    border-radius: 8px !important;
+}
+
+.executive-input:focus {
+    border-color: var(--admin-burnt-orange) !important;
+    box-shadow: 0 0 0 3px var(--admin-burnt-orange-glow) !important;
+}
+
+.heatmap-table {
+    border-collapse: separate !important;
+    border-spacing: 4px !important;
+    border: none !important;
+}
+
+.heatmap-table th {
+    border: none !important;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--admin-anthracite-muted);
+}
+
+.heatmap-cell {
+    border: 1px solid rgba(0, 0, 0, 0.05) !important;
+    border-radius: 8px !important;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 12px 6px !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: default;
+}
+
+.heatmap-cell:hover {
+    transform: scale(1.08);
+    box-shadow: 0 6px 16px rgba(211, 84, 0, 0.25);
+    z-index: 5;
+    position: relative;
+}
+
+.executive-table th {
+    background-color: #f8fafc;
+    color: var(--admin-anthracite);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+

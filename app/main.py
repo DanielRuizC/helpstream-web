@@ -7,7 +7,7 @@ import firebase_admin
 from firebase_admin import credentials
 from . import models
 from .database import engine
-from .routers import tickets, videos, auth, reportes
+from .routers import tickets, videos, auth, reportes, analytics
 
 
 # Create database tables
@@ -50,6 +50,7 @@ app.include_router(videos.router)
 app.include_router(auth.router)
 app.include_router(reportes.router)
 app.include_router(reportes.dashboard_router)
+app.include_router(analytics.router)
 
 
 @app.on_event("startup")
