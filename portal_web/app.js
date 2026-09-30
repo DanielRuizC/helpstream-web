@@ -39,7 +39,8 @@ const ENDPOINTS = {
     REPORTES_DASHBOARD: `${API_URL}/api/reportes/dashboard`, // HU20: Reportes y dashboard gerencial
     REPORTES_KPIS: `${API_URL}/api/reportes/kpis`,
     REPORTES_TICKETS: `${API_URL}/api/reportes/tickets`,
-    DASHBOARD_GERENCIAL: `${API_URL}/api/dashboard/gerencial`
+    DASHBOARD_GERENCIAL: `${API_URL}/api/dashboard/gerencial`,
+    REPORTES_EXCEL: `${API_URL}/api/reportes/exportar/excel` // HU15.3: Exportación nativa a Excel
 };
 
 let modalInstance = null;
@@ -1143,6 +1144,7 @@ async function inicializarDashboardGerencial() {
     const selectEstado = document.getElementById('filtroEstado');
     const btnRecargar = document.getElementById('btnRecargarDashboard');
     const btnExportar = document.getElementById('btnExportarCSV');
+    const btnExportarExcel = document.getElementById('btnExportarExcel');
 
     if (inputBuscar) inputBuscar.addEventListener('input', filtrarReportesGerenciales);
     if (selectSede) selectSede.addEventListener('change', filtrarReportesGerenciales);
@@ -1162,6 +1164,10 @@ async function inicializarDashboardGerencial() {
 
     if (btnExportar) {
         btnExportar.addEventListener('click', exportarReportesCSV);
+    }
+
+    if (btnExportarExcel) {
+        btnExportarExcel.addEventListener('click', exportarReportesExcel);
     }
 
     await cargarReportesGerenciales();
@@ -1530,5 +1536,70 @@ function exportarReportesCSV() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+}
+
+// ==========================================
+// HU15.3: Exportación Nativa a Excel (.xlsx)
+// Consume el endpoint protegido /api/reportes/exportar/excel enviando el token JWT en las cabeceras
+// ==========================================
+async function exportarReportesExcel() {
+    const token = localStorage.getItem('helpstream_token');
+    if (!token) {
+        alert('Sesión no válida o expirada. Por favor inicie sesión nuevamente.');
+        window.location.replace('login.html');
+        return;
+    }
+
+    const btnExcel = document.getElementById('btnExportarExcel');
+    const originalContent = btnExcel ? btnExcel.innerHTML : '<i class="bi bi-file-earmark-excel-fill me-1"></i> Exportar Excel';
+
+    if (btnExcel) {
+        btnExcel.disabled = true;
+        btnExcel.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Descargando...';
+    }
+
+    try {
+        const urlEndpoint = (typeof ENDPOINTS !== 'undefined' && ENDPOINTS.REPORTES_EXCEL)
+            ? ENDPOINTS.REPORTES_EXCEL
+            : `${API_URL}/api/reportes/exportar/excel`;
+
+        const response = await fetch(urlEndpoint, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                alert('Sesión expirada o no autorizada. Redirigiendo a inicio de sesión...');
+                window.location.replace('login.html');
+                return;
+            } else if (response.status === 403) {
+                alert('Acceso denegado exclusivo para Jefatura de TI.');
+                return;
+            } else {
+                throw new Error(`Error en el servidor al generar el Excel (código ${response.status})`);
+            }
+        }
+
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.setAttribute('download', 'reporte_incidencias.xlsx');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+        console.error('Error al exportar a Excel:', error);
+        alert('Ocurrió un error al descargar el archivo Excel. Por favor verifique la conexión o intente nuevamente.');
+    } finally {
+        if (btnExcel) {
+            btnExcel.disabled = false;
+            btnExcel.innerHTML = originalContent;
+        }
+    }
 }
 

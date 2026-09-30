@@ -117,12 +117,15 @@
                     <h3 class="fw-bold mb-1" style="color: var(--admin-anthracite);">Panel Ejecutivo de Control & Reportes</h3>
                     <p class="text-muted small mb-0">Supervisión estratégica de incidencias, auditoría de tiempos SLA y análisis de autoatención (HU20).</p>
                 </div>
-                <div class="d-flex gap-2">
+                <div class="d-flex flex-wrap gap-2">
                     <button class="btn btn-burnt-orange shadow-sm" id="btnRecargarDashboard">
                         <i class="bi bi-arrow-clockwise me-1"></i> Actualizar Métricas
                     </button>
                     <button class="btn btn-outline-burnt-orange shadow-sm" id="btnExportarCSV">
                         <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i> Exportar CSV
+                    </button>
+                    <button class="btn btn-excel shadow-sm" id="btnExportarExcel">
+                        <i class="bi bi-file-earmark-excel-fill me-1"></i> Exportar Excel
                     </button>
                     <button class="btn btn-outline-secondary shadow-sm" onclick="window.print()">
                         <i class="bi bi-printer-fill me-1"></i> Imprimir

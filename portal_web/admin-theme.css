@@ -124,6 +124,32 @@ body.admin-executive-body {
     box-shadow: 0 4px 12px var(--admin-burnt-orange-glow);
 }
 
+/* Botón Excel (HU15.3 - Verde corporativo clásico de Excel) */
+.btn-excel {
+    background-color: #107c41 !important;
+    border-color: #0b5a2f !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 2px 8px rgba(16, 124, 65, 0.25);
+}
+
+.btn-excel:hover {
+    background-color: #0b5a2f !important;
+    border-color: #084323 !important;
+    color: #ffffff !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(16, 124, 65, 0.35);
+}
+
+.btn-excel:active,
+.btn-excel:focus {
+    background-color: #084323 !important;
+    border-color: #063119 !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 0 0.25rem rgba(16, 124, 65, 0.35) !important;
+}
+
 /* Botón Hamburguesa Antracita */
 .sidebar-toggle-btn {
     border-color: var(--admin-border) !important;

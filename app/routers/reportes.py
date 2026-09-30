@@ -1,4 +1,8 @@
+import io
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
@@ -234,6 +238,94 @@ def get_reportes_tickets(
         tickets = [t for t in tickets if (t.get("estado") or "").lower() == estado.lower()]
 
     return tickets
+
+
+@router.get("/exportar/excel")
+def exportar_reportes_excel(
+    db: Session = Depends(get_db),
+    admin_user: models.Usuario = Depends(get_current_admin_user)
+):
+    """
+    HU15.3: Exportación nativa de incidencias a Excel (.xlsx).
+    Consulta todos los tickets de la base de datos con sus relaciones de usuario,
+    construye un archivo Excel en memoria con formato tabular y cabeceras en negrita,
+    y lo retorna mediante StreamingResponse con nombre 'reporte_incidencias.xlsx'.
+    """
+    results = (
+        db.query(models.Ticket, models.Usuario)
+        .outerjoin(models.Usuario, models.Ticket.usuario_id == models.Usuario.id)
+        .order_by(models.Ticket.id.desc())
+        .all()
+    )
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Incidencias"
+
+    headers = ["ID", "Solicitante", "Sede", "Criticidad", "Estado", "Estado SLA", "Fecha Creación"]
+    ws.append(headers)
+
+    # Estilo en negrita para cabeceras
+    header_font = Font(name="Calibri", size=11, bold=True)
+    header_fill = PatternFill(start_color="F2F4F8", end_color="F2F4F8", fill_type="solid")
+
+    for col_idx in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(
+            horizontal="center" if headers[col_idx - 1] in ["ID", "Criticidad", "Estado", "Estado SLA", "Fecha Creación"] else "left",
+            vertical="center"
+        )
+
+    ahora = datetime.utcnow()
+
+    for ticket, usuario in results:
+        creador_info = estructurar_info_creador(db, ticket, usuario=usuario)
+        solicitante_nombre = creador_info.nombre or ticket.correo_solicitante or (f"Usuario #{ticket.usuario_id}" if ticket.usuario_id else "Usuario")
+
+        sede = ticket.sede or "-"
+        criticidad = ticket.criticidad or "Media"
+        estado = ticket.estado or "Abierto"
+
+        sla_info = calcular_metrica_ticket(ticket, ahora)
+        estado_sla = sla_info.get("estado_sla", "Normal")
+
+        fecha_creacion_str = ticket.fecha_creacion.strftime("%Y-%m-%d %H:%M:%S") if ticket.fecha_creacion else "-"
+
+        ws.append([
+            ticket.id,
+            solicitante_nombre,
+            sede,
+            criticidad,
+            estado,
+            estado_sla,
+            fecha_creacion_str
+        ])
+
+    # Ajustar ancho de columnas para legibilidad
+    for col in ws.columns:
+        max_len = 0
+        col_letter = col[0].column_letter
+        for cell in col:
+            val_str = str(cell.value or "")
+            if len(val_str) > max_len:
+                max_len = len(val_str)
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+    stream = io.BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+
+    headers_response = {
+        "Content-Disposition": 'attachment; filename="reporte_incidencias.xlsx"'
+    }
+
+    return StreamingResponse(
+        stream,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers_response
+    )
 
 
 @dashboard_router.get("/gerencial")
