@@ -737,7 +737,8 @@ function calcularMetricas(tickets) {
     let nuevosHoy = 0;
     
     const hoy = new Date();
-    const formatoHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+    // Obtener fecha de hoy en formato YYYY-MM-DD en hora de Lima
+    const formatoHoy = hoy.toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
 
     tickets.forEach(t => {
         // Abiertos vs Resueltos
@@ -747,12 +748,21 @@ function calcularMetricas(tickets) {
             abiertos++;
         }
         
-        // Tickets de Hoy
+        // Tickets de Hoy en hora de Lima
         if (t.fecha_creacion) {
-            // Asume formato "YYYY-MM-DDTHH:MM:SS"
-            const fechaTicket = t.fecha_creacion.split('T')[0];
-            if (fechaTicket === formatoHoy) {
-                nuevosHoy++;
+            try {
+                const dt = new Date(t.fecha_creacion);
+                const fechaTicket = !isNaN(dt.getTime())
+                    ? dt.toLocaleDateString('en-CA', { timeZone: 'America/Lima' })
+                    : t.fecha_creacion.split('T')[0];
+                if (fechaTicket === formatoHoy) {
+                    nuevosHoy++;
+                }
+            } catch (e) {
+                const fechaTicket = t.fecha_creacion.split('T')[0];
+                if (fechaTicket === formatoHoy) {
+                    nuevosHoy++;
+                }
             }
         }
     });
@@ -824,11 +834,20 @@ function renderTickets(tickets) {
     }
 
     tickets.forEach(ticket => {
-        // Formatear Fecha
+        // Formatear Fecha en Zona Horaria America/Lima (UTC-5)
         let fechaFormatted = '-';
         if (ticket.fecha_creacion) {
-            const d = new Date(ticket.fecha_creacion);
-            fechaFormatted = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            try {
+                const d = new Date(ticket.fecha_creacion);
+                if (!isNaN(d.getTime())) {
+                    const dia = d.toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: '2-digit' });
+                    const mes = d.toLocaleDateString('es-PE', { timeZone: 'America/Lima', month: '2-digit' });
+                    const hora = d.toLocaleTimeString('es-PE', { timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit', hour12: false });
+                    fechaFormatted = `${dia}/${mes} ${hora}`;
+                }
+            } catch (e) {
+                fechaFormatted = String(ticket.fecha_creacion);
+            }
         }
 
         // Badge Estado
@@ -959,41 +978,52 @@ function actualizarTemporizadoresSLA() {
             return;
         }
 
-        const fechaLimite = new Date(fechaCreacion.getTime() + horasSLA * 3600000);
+        const tiempoTotalMs = horasSLA * 3600000;
+        const fechaLimite = new Date(fechaCreacion.getTime() + tiempoTotalMs);
         const diferenciaMs = fechaLimite.getTime() - ahora.getTime();
+        const tiempoTranscurridoMs = ahora.getTime() - fechaCreacion.getTime();
+        const porcentajeTranscurrido = (tiempoTranscurridoMs / tiempoTotalMs) * 100;
 
-        if (diferenciaMs <= 0) {
-            // Si el tiempo es menor a 0, muestra "Vencido" en rojo oscuro y negrita
+        if (diferenciaMs <= 0 || porcentajeTranscurrido >= 100) {
+            // Si el tiempo venció o superó el 100%: Rojo (danger)
             timer.innerHTML = '<strong>Vencido</strong>';
-            timer.className = 'sla-timer fw-bold';
-            timer.style.color = '#8b0000';
-        } else {
+            timer.className = 'sla-timer badge bg-danger text-white shadow-sm';
             timer.style.color = '';
-            const totalMinutos = Math.floor(diferenciaMs / 60000);
-            const totalHoras = Math.floor(totalMinutos / 60);
-            const dias = Math.floor(totalHoras / 24);
-            const horasRestantes = totalHoras % 24;
-            const minutosRestantes = totalMinutos % 60;
+            return;
+        }
 
-            let textoTiempo = '';
-            if (dias > 0) {
-                textoTiempo = `${dias}d ${horasRestantes}h`;
-            } else if (totalHoras > 0) {
-                textoTiempo = `${totalHoras}h ${minutosRestantes}m`;
-            } else {
-                textoTiempo = `${minutosRestantes}m`;
-            }
+        timer.style.color = '';
+        const totalMinutos = Math.floor(diferenciaMs / 60000);
+        const totalHoras = Math.floor(totalMinutos / 60);
+        const dias = Math.floor(totalHoras / 24);
+        const horasRestantes = totalHoras % 24;
+        const minutosRestantes = totalMinutos % 60;
 
-            // Validación de Colores:
-            // Si el tiempo restante es menor a 1 hora (< 60 minutos): color rojo (text-danger o badge bg-danger)
-            if (totalHoras < 1) {
-                timer.textContent = textoTiempo;
-                timer.className = 'sla-timer badge bg-danger text-white shadow-sm';
-            } else {
-                // Si está en tiempo normal (mayor a 1 hora): aplica un color verde o neutro
-                timer.textContent = textoTiempo;
-                timer.className = 'sla-timer badge bg-success bg-opacity-10 text-success border border-success border-opacity-25';
-            }
+        let textoTiempo = '';
+        if (dias > 0) {
+            textoTiempo = `${dias}d ${horasRestantes}h`;
+        } else if (totalHoras > 0) {
+            textoTiempo = `${totalHoras}h ${minutosRestantes}m`;
+        } else {
+            textoTiempo = `${minutosRestantes}m`;
+        }
+
+        // HU18: Nueva regla matemática de tercios:
+        // Verde (success): Si ha transcurrido menos de un tercio (< 33.3%) del tiempo total.
+        // Amarillo (warning): Si ha transcurrido entre un tercio y dos tercios (>= 33.3% y < 66.6%) del tiempo total.
+        // Rojo (danger): Si ha transcurrido más de dos tercios (>= 66.6%) del tiempo total, o si ya está vencido.
+        if (porcentajeTranscurrido < (100 / 3)) {
+            // < 33.3% transcurrido -> Verde (success)
+            timer.textContent = textoTiempo;
+            timer.className = 'sla-timer badge bg-success bg-opacity-10 text-success border border-success border-opacity-25';
+        } else if (porcentajeTranscurrido < (200 / 3)) {
+            // >= 33.3% y < 66.6% transcurrido -> Amarillo (warning)
+            timer.textContent = textoTiempo;
+            timer.className = 'sla-timer badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 text-dark';
+        } else {
+            // >= 66.6% transcurrido -> Rojo (danger)
+            timer.textContent = textoTiempo;
+            timer.className = 'sla-timer badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 fw-bold';
         }
     });
 }
@@ -1406,14 +1436,16 @@ function renderizarTablaReportes(tickets) {
     tickets.forEach(t => {
         const tr = document.createElement('tr');
 
-        // Estado SLA Badge
+        // Estado SLA Badge (Regla de Tercios HU18)
         let badgeSlaHtml = '';
-        if (t.estado_sla === 'Cumplido') {
+        if (t.estado === 'Resuelto' || t.estado_sla === 'Cumplido') {
             badgeSlaHtml = '<span class="badge-sla-cumplido"><i class="bi bi-check-circle-fill me-1"></i> Cumplido</span>';
-        } else if (t.estado_sla === 'Vencido') {
+        } else if (t.estado_sla === 'Vencido' || (t.horas_restantes !== undefined && t.horas_restantes <= 0)) {
             badgeSlaHtml = '<span class="badge-sla-vencido"><i class="bi bi-x-circle-fill me-1"></i> Vencido</span>';
-        } else if (t.estado_sla === 'En Riesgo') {
-            badgeSlaHtml = `<span class="badge-sla-riesgo"><i class="bi bi-exclamation-triangle-fill me-1"></i> En Riesgo (${t.horas_restantes}h)</span>`;
+        } else if (t.color_sla === 'danger' || t.estado_sla === 'En Riesgo') {
+            badgeSlaHtml = `<span class="badge-sla-vencido"><i class="bi bi-exclamation-octagon-fill me-1"></i> En Riesgo (${t.horas_restantes}h)</span>`;
+        } else if (t.color_sla === 'warning' || t.estado_sla === 'En Atención') {
+            badgeSlaHtml = `<span class="badge-sla-advertencia"><i class="bi bi-exclamation-triangle-fill me-1"></i> En Atención (${t.horas_restantes}h)</span>`;
         } else {
             badgeSlaHtml = `<span class="badge-sla-normal"><i class="bi bi-clock-fill me-1"></i> ${t.horas_restantes}h restantes</span>`;
         }
@@ -1434,12 +1466,24 @@ function renderizarTablaReportes(tickets) {
             estadoBadge = '<span class="badge bg-success">Resuelto</span>';
         }
 
-        // Fecha creación formateada
+        // Fecha creación formateada en Hora de Lima
         let fechaStr = '-';
         if (t.fecha_creacion) {
             try {
                 const f = new Date(t.fecha_creacion);
-                fechaStr = f.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                if (!isNaN(f.getTime())) {
+                    fechaStr = f.toLocaleDateString('es-PE', {
+                        timeZone: 'America/Lima',
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false
+                    });
+                } else {
+                    fechaStr = t.fecha_creacion;
+                }
             } catch (e) {
                 fechaStr = t.fecha_creacion;
             }
@@ -1508,12 +1552,16 @@ function abrirModalAuditoria(ticketId) {
 
     const elSla = document.getElementById('auditSla');
     if (elSla) {
-        if (t.estado_sla === 'Cumplido') {
-            elSla.innerHTML = '<span class="badge-sla-cumplido">Cumplido en tiempo</span>';
-        } else if (t.estado_sla === 'Vencido') {
-            elSla.innerHTML = '<span class="badge-sla-vencido">Vencido fuera de SLA</span>';
+        if (t.estado === 'Resuelto' || t.estado_sla === 'Cumplido') {
+            elSla.innerHTML = '<span class="badge-sla-cumplido"><i class="bi bi-check-circle-fill me-1"></i> Cumplido en tiempo</span>';
+        } else if (t.estado_sla === 'Vencido' || (t.horas_restantes !== undefined && t.horas_restantes <= 0)) {
+            elSla.innerHTML = '<span class="badge-sla-vencido"><i class="bi bi-x-circle-fill me-1"></i> Vencido fuera de SLA</span>';
+        } else if (t.color_sla === 'danger' || t.estado_sla === 'En Riesgo') {
+            elSla.innerHTML = `<span class="badge-sla-vencido"><i class="bi bi-exclamation-octagon-fill me-1"></i> En Riesgo (${t.horas_restantes}h restantes)</span>`;
+        } else if (t.color_sla === 'warning' || t.estado_sla === 'En Atención') {
+            elSla.innerHTML = `<span class="badge-sla-advertencia"><i class="bi bi-exclamation-triangle-fill me-1"></i> En Atención (${t.horas_restantes}h restantes)</span>`;
         } else {
-            elSla.innerHTML = `<span class="badge-sla-normal">${t.horas_restantes} horas restantes</span>`;
+            elSla.innerHTML = `<span class="badge-sla-normal"><i class="bi bi-clock-fill me-1"></i> ${t.horas_restantes} horas restantes</span>`;
         }
     }
 

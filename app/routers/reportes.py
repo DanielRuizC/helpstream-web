@@ -5,9 +5,17 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
+import pytz
 from typing import List, Dict, Any, Optional
 from .. import models, schemas, crud
 from ..database import get_db
+from ..timezone import (
+    LIMA_TZ,
+    obtener_ahora_lima,
+    convertir_a_lima,
+    formatear_fecha_lima,
+    convertir_lima_a_utc_naive
+)
 from .auth import get_current_admin_user
 from .tickets import estructurar_info_creador
 
@@ -34,32 +42,56 @@ SLA_LIMITES_HORAS = {
 }
 
 
-def calcular_metrica_ticket(ticket: models.Ticket, ahora: datetime) -> Dict[str, Any]:
-    """Calcula el estado y tiempo restante del SLA para un ticket individual."""
+def calcular_metrica_ticket(ticket: models.Ticket, ahora: Optional[datetime] = None) -> Dict[str, Any]:
+    """
+    Calcula el estado y tiempo restante del SLA para un ticket individual (HU18).
+    Garantiza que tanto la fecha de creación del ticket como la variable de la
+    'hora actual' se encuentren estrictamente en la misma zona horaria (America/Lima UTC-5)
+    para eliminar el error matemático de las 'horas extra'.
+    
+    Aplica la nueva regla matemática de tercios:
+    - Verde (success): Si ha transcurrido menos de un tercio (< 33.3%) del tiempo total.
+    - Amarillo (warning): Si ha transcurrido entre un tercio y dos tercios (>= 33.3% y < 66.6%) del tiempo total.
+    - Rojo (danger): Si ha transcurrido más de dos tercios (>= 66.6%) del tiempo total, o si ya está vencido.
+    """
+    if ahora is None:
+        ahora = obtener_ahora_lima()
+    elif ahora.tzinfo is None:
+        ahora = pytz.utc.localize(ahora).astimezone(LIMA_TZ)
+    else:
+        ahora = ahora.astimezone(LIMA_TZ)
+
     criticidad = ticket.criticidad or "Media"
     sla_limite = SLA_LIMITES_HORAS.get(criticidad, 72)
     
-    fecha_creacion = ticket.fecha_creacion or ahora
-    if fecha_creacion.tzinfo is not None:
-        fecha_creacion = fecha_creacion.replace(tzinfo=None)
+    fecha_creacion = convertir_a_lima(ticket.fecha_creacion) or ahora
 
-    tiempo_transcurrido = (ahora - fecha_creacion).total_seconds() / 3600.0
+    tiempo_transcurrido = max(0.0, (ahora - fecha_creacion).total_seconds() / 3600.0)
     horas_restantes = max(0.0, sla_limite - tiempo_transcurrido)
+    pct_transcurrido = (tiempo_transcurrido / sla_limite) * 100.0 if sla_limite > 0 else 100.0
     
     if ticket.estado == "Resuelto":
         # Considerado cumplido
         estado_sla = "Cumplido"
         esta_vencido = False
+        color_sla = "success"
     else:
-        if tiempo_transcurrido > sla_limite:
+        if tiempo_transcurrido >= sla_limite or horas_restantes <= 0:
             estado_sla = "Vencido"
             esta_vencido = True
-        elif horas_restantes <= (sla_limite * 0.25):
+            color_sla = "danger"
+        elif pct_transcurrido >= (200.0 / 3.0):  # >= 66.6% del tiempo total
             estado_sla = "En Riesgo"
             esta_vencido = False
-        else:
+            color_sla = "danger"
+        elif pct_transcurrido >= (100.0 / 3.0):  # >= 33.3% y < 66.6% del tiempo total
+            estado_sla = "En Atención"
+            esta_vencido = False
+            color_sla = "warning"
+        else:  # < 33.3% del tiempo total
             estado_sla = "Normal"
             esta_vencido = False
+            color_sla = "success"
 
     es_autoatencion = False
     if ticket.comentario_tecnico:
@@ -71,16 +103,18 @@ def calcular_metrica_ticket(ticket: models.Ticket, ahora: datetime) -> Dict[str,
         "sla_limite_horas": sla_limite,
         "tiempo_transcurrido_horas": round(tiempo_transcurrido, 1),
         "horas_restantes": round(horas_restantes, 1),
+        "porcentaje_transcurrido": round(pct_transcurrido, 1),
         "estado_sla": estado_sla,
+        "color_sla": color_sla,
         "esta_vencido": esta_vencido,
         "es_autoatencion": es_autoatencion
     }
 
 
 def generar_resumen_ejecutivo(db: Session) -> Dict[str, Any]:
-    """Genera métricas consolidadas para la Jefatura de TI."""
+    """Genera métricas consolidadas para la Jefatura de TI en hora local Lima."""
     tickets = db.query(models.Ticket).all()
-    ahora = datetime.utcnow()
+    ahora = obtener_ahora_lima()
 
     total_tickets = len(tickets)
     abiertos = 0
@@ -137,6 +171,7 @@ def generar_resumen_ejecutivo(db: Session) -> Dict[str, Any]:
             autoatencion_count += 1
 
         creador_info = estructurar_info_creador(db, t)
+        fc_lima = convertir_a_lima(t.fecha_creacion)
         lista_tickets_reporte.append({
             "id": t.id,
             "descripcion": t.descripcion,
@@ -144,16 +179,20 @@ def generar_resumen_ejecutivo(db: Session) -> Dict[str, Any]:
             "criticidad": crit_normalizada,
             "sede": t.sede or "-",
             "piso": t.piso or "-",
-            "fecha_creacion": t.fecha_creacion.isoformat() if t.fecha_creacion else None,
+            "fecha_creacion": fc_lima.isoformat() if fc_lima else None,
             "solicitante": creador_info.nombre or t.correo_solicitante or "Usuario",
             "correo_solicitante": t.correo_solicitante or creador_info.correo or "-",
             "telefono": creador_info.telefono or "-",
             "anexo": creador_info.anexo or "-",
             "estado_sla": sla_info["estado_sla"],
+            "color_sla": sla_info["color_sla"],
             "horas_restantes": sla_info["horas_restantes"],
             "sla_limite_horas": sla_info["sla_limite_horas"],
+            "tiempo_transcurrido_horas": sla_info["tiempo_transcurrido_horas"],
+            "porcentaje_transcurrido": sla_info["porcentaje_transcurrido"],
             "es_autoatencion": sla_info["es_autoatencion"]
         })
+
 
     # Cumplimiento SLA porcentaje
     porcentaje_sla = 100.0
@@ -274,20 +313,22 @@ def exportar_reportes_excel(
 
     if fecha_inicio:
         try:
-            dt_inicio = datetime.strptime(fecha_inicio.strip(), "%Y-%m-%d")
-            query = query.filter(models.Ticket.fecha_creacion >= dt_inicio)
+            dt_inicio_local = datetime.strptime(fecha_inicio.strip(), "%Y-%m-%d")
+            dt_inicio_utc = convertir_lima_a_utc_naive(dt_inicio_local)
+            query = query.filter(models.Ticket.fecha_creacion >= dt_inicio_utc)
         except ValueError:
             pass
 
     if fecha_fin:
         try:
-            dt_fin = datetime.strptime(fecha_fin.strip(), "%Y-%m-%d").replace(hour=23, minute=59, second=59)
-            query = query.filter(models.Ticket.fecha_creacion <= dt_fin)
+            dt_fin_local = datetime.strptime(fecha_fin.strip(), "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+            dt_fin_utc = convertir_lima_a_utc_naive(dt_fin_local)
+            query = query.filter(models.Ticket.fecha_creacion <= dt_fin_utc)
         except ValueError:
             pass
 
     results = query.order_by(models.Ticket.id.desc()).all()
-    ahora = datetime.utcnow()
+    ahora = obtener_ahora_lima()
 
     wb = Workbook()
 
@@ -323,7 +364,7 @@ def exportar_reportes_excel(
     ws_resumen.cell(row=1, column=1).font = font_titulo
 
     periodo_str = f"Período: {fecha_inicio or 'Inicio'} al {fecha_fin or 'Actual'}" if (fecha_inicio or fecha_fin) else "Período: Consolidado Histórico Completo"
-    ws_resumen.append([periodo_str, "", f"Generado: {ahora.strftime('%Y-%m-%d %H:%M:%S')} UTC"])
+    ws_resumen.append([periodo_str, "", f"Generado: {ahora.strftime('%Y-%m-%d %H:%M:%S')} (Hora Lima UTC-5)"])
     ws_resumen.cell(row=2, column=1).font = font_subtitulo
     ws_resumen.cell(row=2, column=3).font = font_subtitulo
     ws_resumen.append([])  # Espacio
@@ -479,7 +520,7 @@ def exportar_reportes_excel(
         sla_info = calcular_metrica_ticket(ticket, ahora)
         estado_sla = sla_info.get("estado_sla", "Normal")
 
-        fecha_creacion_str = ticket.fecha_creacion.strftime("%Y-%m-%d %H:%M:%S") if ticket.fecha_creacion else "-"
+        fecha_creacion_str = formatear_fecha_lima(ticket.fecha_creacion, "%Y-%m-%d %H:%M:%S")
 
         ws_data.append([
             ticket.id,

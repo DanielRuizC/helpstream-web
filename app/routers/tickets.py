@@ -10,6 +10,7 @@ from .. import crud, models, schemas
 from ..database import get_db
 from ..auth import decode_access_token
 from ..utils.ia_analyzer import analizar_ticket_ia
+from ..timezone import LIMA_TZ, convertir_a_lima, formatear_fecha_lima
 
 # Inicializar Firebase Admin SDK si no ha sido inicializado previamente
 if not firebase_admin._apps:
@@ -22,6 +23,20 @@ router = APIRouter(
     prefix="/tickets",
     tags=["tickets"],
 )
+
+
+def formatear_ticket_response(db: Session, ticket: models.Ticket, usuario: Optional[models.Usuario] = None) -> models.Ticket:
+    """
+    Enriquece el modelo Ticket con palabras clave generadas por IA, datos de contacto del creador
+    y convierte su fecha_creacion a la zona horaria America/Lima (UTC-5) (HU18).
+    """
+    ticket.palabras_clave = analizar_ticket_ia(ticket.descripcion)["palabras_clave"]
+    creador_info = estructurar_info_creador(db, ticket, usuario=usuario)
+    ticket.creador = creador_info
+    ticket.usuario = creador_info
+    if ticket.fecha_creacion:
+        ticket.fecha_creacion = convertir_a_lima(ticket.fecha_creacion)
+    return ticket
 
 
 def estructurar_info_creador(db: Session, ticket: models.Ticket, usuario: Optional[models.Usuario] = None) -> schemas.UsuarioCreador:
@@ -134,11 +149,7 @@ async def create_ticket(
     db.commit()
     db.refresh(db_ticket)
 
-    db_ticket.palabras_clave = ia_result["palabras_clave"]
-    creador_info = estructurar_info_creador(db, db_ticket)
-    db_ticket.creador = creador_info
-    db_ticket.usuario = creador_info
-    return db_ticket
+    return formatear_ticket_response(db, db_ticket)
 
 @router.get("/", response_model=List[schemas.TicketResponse])
 def read_tickets(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -152,11 +163,7 @@ def read_tickets(skip: int = 0, limit: int = 100, db: Session = Depends(get_db))
     )
     tickets = []
     for t, u in results:
-        t.palabras_clave = analizar_ticket_ia(t.descripcion)["palabras_clave"]
-        creador_info = estructurar_info_creador(db, t, usuario=u)
-        t.creador = creador_info
-        t.usuario = creador_info
-        tickets.append(t)
+        tickets.append(formatear_ticket_response(db, t, usuario=u))
     return tickets
 
 @router.patch("/{ticket_id}/estado", response_model=schemas.TicketResponse)
@@ -205,11 +212,7 @@ def update_ticket_state(ticket_id: int, ticket_update: schemas.TicketUpdateEstad
     except Exception as e:
         print(f"[FCM Error] No se pudo enviar notificación push para el ticket #{db_ticket.id}: {e}")
 
-    db_ticket.palabras_clave = analizar_ticket_ia(db_ticket.descripcion)["palabras_clave"]
-    creador_info = estructurar_info_creador(db, db_ticket)
-    db_ticket.creador = creador_info
-    db_ticket.usuario = creador_info
-    return db_ticket
+    return formatear_ticket_response(db, db_ticket)
 
 @router.post("/{ticket_id}/resolver-autoatencion")
 def resolver_ticket_autoatencion(ticket_id: int, db: Session = Depends(get_db)):
@@ -223,7 +226,7 @@ def resolver_ticket_autoatencion(ticket_id: int, db: Session = Depends(get_db)):
     
     db.commit()
     db.refresh(db_ticket)
-    db_ticket.palabras_clave = analizar_ticket_ia(db_ticket.descripcion)["palabras_clave"]
+    formatear_ticket_response(db, db_ticket)
     
     return {
         "mensaje": "Ticket atendido automáticamente por microaprendizaje",
@@ -243,9 +246,6 @@ def get_user_tickets(usuario_id: int, skip: int = 0, limit: int = 100, db: Sessi
     )
     tickets = []
     for t, u in results:
-        t.palabras_clave = analizar_ticket_ia(t.descripcion)["palabras_clave"]
-        creador_info = estructurar_info_creador(db, t, usuario=u)
-        t.creador = creador_info
-        t.usuario = creador_info
-        tickets.append(t)
+        tickets.append(formatear_ticket_response(db, t, usuario=u))
     return tickets
+

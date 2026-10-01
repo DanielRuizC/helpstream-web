@@ -6,6 +6,12 @@ from collections import defaultdict
 
 from .. import models, schemas
 from ..database import get_db
+from ..timezone import (
+    LIMA_TZ,
+    obtener_ahora_lima,
+    convertir_a_lima,
+    convertir_lima_a_utc_naive
+)
 from .auth import get_current_admin_user
 from .reportes import calcular_metrica_ticket
 
@@ -89,40 +95,46 @@ def calcular_metricas_analytics(
     Calcula KPIs, series temporales, Top 5 de incidentes, mapa de calor y resumen mensual
     aplicando filtros opcionales de fecha_inicio, fecha_fin y anio.
     """
-    ahora = datetime.utcnow()
+    ahora = obtener_ahora_lima()
     query = db.query(models.Ticket)
 
-    # Identificar todos los años disponibles en la base de datos
+    # Identificar todos los años disponibles en la base de datos (en hora local Lima)
     todos_tickets = db.query(models.Ticket.fecha_creacion).all()
     anios_set = set()
     for (fc,) in todos_tickets:
         if fc:
-            anios_set.add(fc.year)
+            fc_lima = convertir_a_lima(fc)
+            if fc_lima:
+                anios_set.add(fc_lima.year)
     anios_set.add(ahora.year)
     anios_disponibles = sorted(list(anios_set), reverse=True)
 
     anio_seleccionado = anio or (anios_disponibles[0] if anios_disponibles else ahora.year)
 
-    # Filtrado dinámico por fechas
+    # Filtrado dinámico por fechas convertidas a UTC para la base de datos
     if fecha_inicio:
         try:
-            dt_inicio = datetime.strptime(fecha_inicio.strip(), "%Y-%m-%d")
-            query = query.filter(models.Ticket.fecha_creacion >= dt_inicio)
+            dt_inicio_local = datetime.strptime(fecha_inicio.strip(), "%Y-%m-%d")
+            dt_inicio_utc = convertir_lima_a_utc_naive(dt_inicio_local)
+            query = query.filter(models.Ticket.fecha_creacion >= dt_inicio_utc)
         except ValueError:
             pass
 
     if fecha_fin:
         try:
-            dt_fin = datetime.strptime(fecha_fin.strip(), "%Y-%m-%d").replace(hour=23, minute=59, second=59)
-            query = query.filter(models.Ticket.fecha_creacion <= dt_fin)
+            dt_fin_local = datetime.strptime(fecha_fin.strip(), "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+            dt_fin_utc = convertir_lima_a_utc_naive(dt_fin_local)
+            query = query.filter(models.Ticket.fecha_creacion <= dt_fin_utc)
         except ValueError:
             pass
 
     # Si se especificó solo el año sin rango de días explícito
     if not fecha_inicio and not fecha_fin and anio:
-        dt_inicio = datetime(anio, 1, 1, 0, 0, 0)
-        dt_fin = datetime(anio, 12, 31, 23, 59, 59)
-        query = query.filter(models.Ticket.fecha_creacion >= dt_inicio, models.Ticket.fecha_creacion <= dt_fin)
+        dt_inicio_local = datetime(anio, 1, 1, 0, 0, 0)
+        dt_fin_local = datetime(anio, 12, 31, 23, 59, 59)
+        dt_inicio_utc = convertir_lima_a_utc_naive(dt_inicio_local)
+        dt_fin_utc = convertir_lima_a_utc_naive(dt_fin_local)
+        query = query.filter(models.Ticket.fecha_creacion >= dt_inicio_utc, models.Ticket.fecha_creacion <= dt_fin_utc)
 
     tickets_periodo = query.order_by(models.Ticket.fecha_creacion.asc()).all()
 
@@ -181,7 +193,7 @@ def calcular_metricas_analytics(
     # A. Serie de tiempo: Soporte Técnico vs Autoatención (HU15.2)
     agrupacion_tiempo = defaultdict(lambda: {"soporte": 0, "autoatencion": 0})
     for t in tickets_periodo:
-        fc = t.fecha_creacion or ahora
+        fc = convertir_a_lima(t.fecha_creacion) or ahora
         fecha_str = fc.strftime("%Y-%m-%d")
         if es_autoatencion(t):
             agrupacion_tiempo[fecha_str]["autoatencion"] += 1
@@ -207,12 +219,12 @@ def calcular_metricas_analytics(
         reverse=True
     )[:5]
 
-    # C. Mapa de Calor (Día de la semana vs Rango horario)
+    # C. Mapa de Calor (Día de la semana vs Rango horario en Hora Lima)
     matriz_mapa = {dia: {r[0]: 0 for r in RANGOS_HORARIOS} for dia in DIAS_SEMANA}
     max_demanda = 0
 
     for t in tickets_periodo:
-        fc = t.fecha_creacion or ahora
+        fc = convertir_a_lima(t.fecha_creacion) or ahora
         dia_idx = fc.weekday()  # 0 = Lunes, 6 = Domingo
         dia_nombre = DIAS_SEMANA[dia_idx]
         rango = obtener_rango_horario(fc.hour)
@@ -241,7 +253,7 @@ def calcular_metricas_analytics(
         mensual_dict = defaultdict(lambda: {"total": 0, "resueltos": 0, "vencidos_sla": 0, "autoatencion": 0})
         anios_meses_presentes = set()
         for t in tickets_periodo:
-            fc = t.fecha_creacion or ahora
+            fc = convertir_a_lima(t.fecha_creacion) or ahora
             clave = (fc.year, fc.month)
             anios_meses_presentes.add(clave)
             mensual_dict[clave]["total"] += 1
@@ -271,14 +283,16 @@ def calcular_metricas_analytics(
                 "horas_ahorradas": round(data_m["autoatencion"] * TIEMPO_PROMEDIO_HISTORICO_HORAS, 1)
             })
     else:
+        dt_inicio_anio = convertir_lima_a_utc_naive(datetime(anio_seleccionado, 1, 1, 0, 0, 0))
+        dt_fin_anio = convertir_lima_a_utc_naive(datetime(anio_seleccionado, 12, 31, 23, 59, 59))
         tickets_anio = db.query(models.Ticket).filter(
-            models.Ticket.fecha_creacion >= datetime(anio_seleccionado, 1, 1),
-            models.Ticket.fecha_creacion <= datetime(anio_seleccionado, 12, 31, 23, 59, 59)
+            models.Ticket.fecha_creacion >= dt_inicio_anio,
+            models.Ticket.fecha_creacion <= dt_fin_anio
         ).all()
 
         mensual_dict = defaultdict(lambda: {"total": 0, "resueltos": 0, "vencidos_sla": 0, "autoatencion": 0})
         for t in tickets_anio:
-            fc = t.fecha_creacion or ahora
+            fc = convertir_a_lima(t.fecha_creacion) or ahora
             m = fc.month
             mensual_dict[m]["total"] += 1
             if t.estado == "Resuelto":
@@ -290,6 +304,7 @@ def calcular_metricas_analytics(
 
             if es_autoatencion(t):
                 mensual_dict[m]["autoatencion"] += 1
+
 
         resumen_mensual = []
         for mes_num in range(1, 13):

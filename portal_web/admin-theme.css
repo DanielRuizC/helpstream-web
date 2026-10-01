@@ -279,6 +279,15 @@ body.admin-executive-body {
     border: 1px solid #a7f3d0;
 }
 
+.badge-sla-advertencia {
+    background-color: #fef3c7;
+    color: #92400e;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 1px solid #fde68a;
+}
+
 .badge-sla-riesgo {
     background-color: var(--admin-burnt-orange-subtle);
     color: var(--admin-burnt-orange-dark);
