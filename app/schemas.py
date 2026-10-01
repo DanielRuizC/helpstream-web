@@ -52,6 +52,7 @@ class UsuarioUpdate(BaseModel):
     activo: Optional[bool] = None
     telefono: Optional[str] = None
     anexo: Optional[str] = None
+    password: Optional[str] = None
 
 class UsuarioLogin(BaseModel):
     correo: str

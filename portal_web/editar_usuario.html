@@ -153,7 +153,7 @@
                             </div>
                         </div>
 
-                        <div class="row g-3 mb-4 align-items-center">
+                        <div class="row g-3 mb-3">
                             <!-- Rol -->
                             <div class="col-md-6">
                                 <label for="editRol" class="form-label small fw-bold text-muted text-uppercase">Rol Asignado</label>
@@ -164,8 +164,20 @@
                                 </select>
                             </div>
 
+                            <!-- Nueva Contraseña -->
+                            <div class="col-md-6">
+                                <label for="editPassword" class="form-label small fw-bold text-muted text-uppercase">Nueva Contraseña</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white"><i class="bi bi-key text-muted"></i></span>
+                                    <input type="password" class="form-control" id="editPassword" placeholder="Dejar en blanco para mantener la clave actual" autocomplete="new-password">
+                                </div>
+                                <div class="form-text text-muted small" style="font-size: 0.75rem;">Dejar en blanco para mantener la clave actual.</div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-4 align-items-center">
                             <!-- Estado Activo / Inactivo -->
-                            <div class="col-md-6 pt-3">
+                            <div class="col-12 pt-1">
                                 <div class="form-check form-switch fs-6">
                                     <input class="form-check-input" type="checkbox" id="editActivo">
                                     <label class="form-check-label fw-semibold" for="editActivo">Usuario Activo en el Sistema</label>

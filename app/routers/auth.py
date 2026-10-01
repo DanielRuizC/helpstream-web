@@ -156,6 +156,7 @@ def buscar_usuario_por_correo(correo: str, db: Session = Depends(get_db)):
 
 
 @router.put("/usuarios/{usuario_id}", response_model=schemas.UsuarioResponse)
+@usuarios_router.put("/{usuario_id}", response_model=schemas.UsuarioResponse)
 def actualizar_usuario(usuario_id: int, datos: schemas.UsuarioUpdate, db: Session = Depends(get_db)):
     """Actualiza datos de un usuario existente."""
     usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
@@ -193,6 +194,8 @@ def actualizar_usuario(usuario_id: int, datos: schemas.UsuarioUpdate, db: Sessio
         usuario.telefono = datos.telefono
     if datos.anexo is not None:
         usuario.anexo = datos.anexo
+    if datos.password is not None and datos.password.strip():
+        usuario.password_hash = get_password_hash(datos.password.strip())
 
     db.commit()
     db.refresh(usuario)

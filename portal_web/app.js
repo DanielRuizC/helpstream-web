@@ -589,6 +589,8 @@ function inicializarModuloUsuarios() {
             if (editAnexo) editAnexo.value = usuario.anexo || '';
             document.getElementById('editRol').value = usuario.rol_id;
             document.getElementById('editActivo').checked = usuario.activo;
+            const editPasswordInput = document.getElementById('editPassword');
+            if (editPasswordInput) editPasswordInput.value = '';
 
             if (contenedorFormEditar) {
                 contenedorFormEditar.classList.remove('d-none');
@@ -629,6 +631,8 @@ function inicializarModuloUsuarios() {
             const editAnexo = document.getElementById('anexo') || document.getElementById('editAnexo');
             const telefono = editTelefono ? editTelefono.value.trim() : null;
             const anexo = editAnexo ? editAnexo.value.trim() : null;
+            const editPasswordInput = document.getElementById('editPassword');
+            const password = editPasswordInput && editPasswordInput.value.trim() ? editPasswordInput.value.trim() : null;
             const btnGuardar = document.getElementById('btnGuardarEdicion');
 
             if (btnGuardar) {
@@ -637,15 +641,30 @@ function inicializarModuloUsuarios() {
             }
 
             try {
+                const token = localStorage.getItem('helpstream_token');
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+
+                const payload = { nombres, correo, rol_id, activo, telefono, anexo };
+                if (password) {
+                    payload.password = password;
+                }
+
                 const response = await fetch(`${ENDPOINTS.USUARIOS}/${userId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ nombres, correo, rol_id, activo, telefono, anexo })
+                    headers: headers,
+                    body: JSON.stringify(payload)
                 });
 
                 if (!response.ok) {
                     const err = await response.json().catch(() => ({}));
                     throw new Error(err.detail || 'Error al guardar cambios.');
+                }
+
+                if (editPasswordInput) {
+                    editPasswordInput.value = '';
                 }
 
                 if (alertEdit) {
