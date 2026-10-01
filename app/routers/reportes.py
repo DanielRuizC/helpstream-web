@@ -1,6 +1,6 @@
 import io
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -248,11 +248,25 @@ def exportar_reportes_excel(
     admin_user: models.Usuario = Depends(get_current_admin_user)
 ):
     """
-    HU15.3: Exportación nativa de incidencias a Excel (.xlsx).
-    Consulta los tickets de la base de datos aplicando filtros opcionales de período (fecha_inicio, fecha_fin),
-    construye un archivo Excel en memoria con formato tabular y cabeceras en negrita,
-    y lo retorna mediante StreamingResponse con nombre 'reporte_incidencias.xlsx'.
+    HU15.3: Exportación nativa estructurada a Excel con dos hojas:
+    - Hoja 1 ("Resumen Ejecutivo"): Hoja activa con KPIs (Horas ahorradas, MTTR, FCR, Reabiertos),
+      Top 5 Incidentes Recurrentes y Resumen Mensual del período.
+    - Hoja 2 ("Data Detallada"): Tabla completa de todas las incidencias del período filtrado.
     """
+    from .analytics import calcular_metricas_analytics
+
+    # 1. Obtener métricas calculadas de Analytics para el período
+    analytics_data = calcular_metricas_analytics(
+        db=db,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+        anio=None
+    )
+    kpis = analytics_data.get("kpis", {})
+    top_5 = analytics_data.get("graficos", {}).get("top_incidentes_recurrentes", [])
+    resumen_mensual = analytics_data.get("resumen_mensual", [])
+
+    # 2. Consultar incidencias detalladas para la Hoja 2
     query = (
         db.query(models.Ticket, models.Usuario)
         .outerjoin(models.Usuario, models.Ticket.usuario_id == models.Usuario.id)
@@ -273,28 +287,186 @@ def exportar_reportes_excel(
             pass
 
     results = query.order_by(models.Ticket.id.desc()).all()
+    ahora = datetime.utcnow()
 
     wb = Workbook()
-    ws = wb.active
-    ws.title = "Incidencias"
 
-    headers = ["ID", "Solicitante", "Sede", "Criticidad", "Estado", "Estado SLA", "Fecha Creación"]
-    ws.append(headers)
+    # -------------------------------------------------------------------------
+    # ESTILOS COMUNES OPENPYXL
+    # -------------------------------------------------------------------------
+    font_titulo = Font(name="Calibri", size=14, bold=True, color="1A1E23")
+    font_subtitulo = Font(name="Calibri", size=10, italic=True, color="57606A")
+    font_seccion_header = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    fill_seccion_header = PatternFill(start_color="1A1E23", end_color="1A1E23", fill_type="solid")
 
-    # Estilo en negrita para cabeceras
-    header_font = Font(name="Calibri", size=11, bold=True)
-    header_fill = PatternFill(start_color="F2F4F8", end_color="F2F4F8", fill_type="solid")
+    font_tabla_header = Font(name="Calibri", size=11, bold=True, color="1F2328")
+    fill_tabla_header = PatternFill(start_color="F2F4F8", end_color="F2F4F8", fill_type="solid")
 
-    for col_idx in range(1, len(headers) + 1):
-        cell = ws.cell(row=1, column=col_idx)
-        cell.font = header_font
-        cell.fill = header_fill
+    font_negrita = Font(name="Calibri", size=11, bold=True)
+    font_normal = Font(name="Calibri", size=11)
+
+    border_fino = Border(
+        left=Side(style='thin', color='D0D7DE'),
+        right=Side(style='thin', color='D0D7DE'),
+        top=Side(style='thin', color='D0D7DE'),
+        bottom=Side(style='thin', color='D0D7DE')
+    )
+
+    # -------------------------------------------------------------------------
+    # HOJA 1: RESUMEN EJECUTIVO (Hoja activa)
+    # -------------------------------------------------------------------------
+    ws_resumen = wb.active
+    ws_resumen.title = "Resumen Ejecutivo"
+
+    # Encabezado principal del informe
+    ws_resumen.append(["HelpStream Analytics - Resumen Ejecutivo"])
+    ws_resumen.cell(row=1, column=1).font = font_titulo
+
+    periodo_str = f"Período: {fecha_inicio or 'Inicio'} al {fecha_fin or 'Actual'}" if (fecha_inicio or fecha_fin) else "Período: Consolidado Histórico Completo"
+    ws_resumen.append([periodo_str, "", f"Generado: {ahora.strftime('%Y-%m-%d %H:%M:%S')} UTC"])
+    ws_resumen.cell(row=2, column=1).font = font_subtitulo
+    ws_resumen.cell(row=2, column=3).font = font_subtitulo
+    ws_resumen.append([])  # Espacio
+
+    # a) SECCIÓN: 4 KPIS PRINCIPALES
+    row_kpi_sec = ws_resumen.max_row + 1
+    ws_resumen.append(["INDICADORES CLAVE DE RENDIMIENTO (KPIS)", "", ""])
+    c_sec1 = ws_resumen.cell(row=row_kpi_sec, column=1)
+    c_sec1.font = font_seccion_header
+    c_sec1.fill = fill_seccion_header
+
+    ws_resumen.append(["Indicador / Métrica", "Valor", "Detalle Operativo"])
+    row_kpi_head = ws_resumen.max_row
+    for c in range(1, 4):
+        cell = ws_resumen.cell(row=row_kpi_head, column=c)
+        cell.font = font_tabla_header
+        cell.fill = fill_tabla_header
+        cell.border = border_fino
+
+    filas_kpis = [
+        ("Horas-Hombre Ahorradas (HU15.1)", f"{kpis.get('horas_ahorradas', 0.0)} hrs", f"Autoatención con microaprendizaje ({kpis.get('tickets_autoatencion', 0)} tickets resueltos)"),
+        ("MTTR (Tiempo Medio de Resolución)", f"{kpis.get('mttr_horas', 0.0)} hrs", "Promedio de atención efectiva de incidencias"),
+        ("Resolución en Primer Contacto (FCR)", f"{kpis.get('fcr_porcentaje', 0.0)}%", "Tasa de cierre directo sin escalamiento"),
+        ("Ratio de Tickets Reabiertos", f"{kpis.get('ratio_reabiertos_porcentaje', 0.0)}%", f"{kpis.get('tickets_reabiertos', 0)} incidencias con reapertura registrada")
+    ]
+
+    for nom, val, det in filas_kpis:
+        ws_resumen.append([nom, val, det])
+        curr_row = ws_resumen.max_row
+        ws_resumen.cell(row=curr_row, column=1).font = font_normal
+        ws_resumen.cell(row=curr_row, column=1).border = border_fino
+        c2 = ws_resumen.cell(row=curr_row, column=2)
+        c2.font = font_negrita
+        c2.alignment = Alignment(horizontal="center")
+        c2.border = border_fino
+        ws_resumen.cell(row=curr_row, column=3).font = font_normal
+        ws_resumen.cell(row=curr_row, column=3).border = border_fino
+
+    ws_resumen.append([])  # Espacio
+
+    # b) SECCIÓN: TOP 5 INCIDENTES RECURRENTES
+    row_top_sec = ws_resumen.max_row + 1
+    ws_resumen.append(["TOP 5 INCIDENTES RECURRENTES", "", ""])
+    c_sec2 = ws_resumen.cell(row=row_top_sec, column=1)
+    c_sec2.font = font_seccion_header
+    c_sec2.fill = fill_seccion_header
+
+    ws_resumen.append(["Categoría / Título", "Cantidad de Casos", "% del Total"])
+    row_top_head = ws_resumen.max_row
+    for c in range(1, 4):
+        cell = ws_resumen.cell(row=row_top_head, column=c)
+        cell.font = font_tabla_header
+        cell.fill = fill_tabla_header
+        cell.border = border_fino
+
+    total_t = kpis.get("total_tickets", len(results))
+    if not top_5:
+        ws_resumen.append(["Sin incidentes registrados en el período", 0, "0.0%"])
+        curr_row = ws_resumen.max_row
+        for c in range(1, 4):
+            ws_resumen.cell(row=curr_row, column=c).border = border_fino
+    else:
+        for item in top_5:
+            cat = item.get("categoria", "Incidencias Generales")
+            cant = item.get("total", 0)
+            pct = f"{(cant / total_t * 100):.1f}%" if total_t > 0 else "0.0%"
+            ws_resumen.append([cat, cant, pct])
+            curr_row = ws_resumen.max_row
+            ws_resumen.cell(row=curr_row, column=1).font = font_normal
+            ws_resumen.cell(row=curr_row, column=1).border = border_fino
+            c2 = ws_resumen.cell(row=curr_row, column=2)
+            c2.font = font_negrita
+            c2.alignment = Alignment(horizontal="center")
+            c2.border = border_fino
+            c3 = ws_resumen.cell(row=curr_row, column=3)
+            c3.font = font_normal
+            c3.alignment = Alignment(horizontal="center")
+            c3.border = border_fino
+
+    ws_resumen.append([])  # Espacio
+
+    # c) SECCIÓN: RESUMEN MENSUAL DEL PERÍODO
+    row_men_sec = ws_resumen.max_row + 1
+    ws_resumen.append(["RESUMEN MENSUAL DEL PERÍODO", "", "", "", "", ""])
+    c_sec3 = ws_resumen.cell(row=row_men_sec, column=1)
+    c_sec3.font = font_seccion_header
+    c_sec3.fill = fill_seccion_header
+
+    headers_m = ["Mes", "Año", "Total Atenciones", "Incidentes Resueltos", "% Cumplimiento SLA", "Horas Ahorradas (HU15.1)"]
+    ws_resumen.append(headers_m)
+    row_m_head = ws_resumen.max_row
+    for c in range(1, len(headers_m) + 1):
+        cell = ws_resumen.cell(row=row_m_head, column=c)
+        cell.font = font_tabla_header
+        cell.fill = fill_tabla_header
+        cell.border = border_fino
+        cell.alignment = Alignment(horizontal="center" if c > 1 else "left")
+
+    for m in resumen_mensual:
+        ws_resumen.append([
+            m.get("mes", ""),
+            m.get("anio", ahora.year),
+            m.get("total_atenciones", 0),
+            m.get("incidentes_resueltos", 0),
+            f"{m.get('cumplimiento_sla_porcentaje', 100.0)}%",
+            f"{m.get('horas_ahorradas', 0.0)} hrs"
+        ])
+        curr_row = ws_resumen.max_row
+        ws_resumen.cell(row=curr_row, column=1).font = font_normal
+        ws_resumen.cell(row=curr_row, column=1).border = border_fino
+        for c in range(2, 7):
+            cell = ws_resumen.cell(row=curr_row, column=c)
+            cell.font = font_negrita if c in [3, 4, 5, 6] else font_normal
+            cell.alignment = Alignment(horizontal="center")
+            cell.border = border_fino
+
+    # Ajustar ancho de columnas en Hoja 1
+    for col in ws_resumen.columns:
+        max_len = 0
+        col_letter = col[0].column_letter
+        for cell in col:
+            val_str = str(cell.value or "")
+            if len(val_str) > max_len:
+                max_len = len(val_str)
+        ws_resumen.column_dimensions[col_letter].width = max(max_len + 4, 15)
+
+    # -------------------------------------------------------------------------
+    # HOJA 2: DATA DETALLADA (Detalle completo de incidencias)
+    # -------------------------------------------------------------------------
+    ws_data = wb.create_sheet(title="Data Detallada")
+
+    headers_data = ["ID", "Solicitante", "Sede", "Criticidad", "Estado", "Estado SLA", "Fecha Creación"]
+    ws_data.append(headers_data)
+
+    for col_idx in range(1, len(headers_data) + 1):
+        cell = ws_data.cell(row=1, column=col_idx)
+        cell.font = font_tabla_header
+        cell.fill = fill_tabla_header
+        cell.border = border_fino
         cell.alignment = Alignment(
-            horizontal="center" if headers[col_idx - 1] in ["ID", "Criticidad", "Estado", "Estado SLA", "Fecha Creación"] else "left",
+            horizontal="center" if headers_data[col_idx - 1] in ["ID", "Criticidad", "Estado", "Estado SLA", "Fecha Creación"] else "left",
             vertical="center"
         )
-
-    ahora = datetime.utcnow()
 
     for ticket, usuario in results:
         creador_info = estructurar_info_creador(db, ticket, usuario=usuario)
@@ -309,7 +481,7 @@ def exportar_reportes_excel(
 
         fecha_creacion_str = ticket.fecha_creacion.strftime("%Y-%m-%d %H:%M:%S") if ticket.fecha_creacion else "-"
 
-        ws.append([
+        ws_data.append([
             ticket.id,
             solicitante_nombre,
             sede,
@@ -318,16 +490,25 @@ def exportar_reportes_excel(
             estado_sla,
             fecha_creacion_str
         ])
+        curr_row = ws_data.max_row
+        for c in range(1, len(headers_data) + 1):
+            cell = ws_data.cell(row=curr_row, column=c)
+            cell.border = border_fino
+            if headers_data[c - 1] in ["ID", "Criticidad", "Estado", "Estado SLA", "Fecha Creación"]:
+                cell.alignment = Alignment(horizontal="center")
 
-    # Ajustar ancho de columnas para legibilidad
-    for col in ws.columns:
+    # Ajustar ancho de columnas en Hoja 2
+    for col in ws_data.columns:
         max_len = 0
         col_letter = col[0].column_letter
         for cell in col:
             val_str = str(cell.value or "")
             if len(val_str) > max_len:
                 max_len = len(val_str)
-        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+        ws_data.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+    # Asegurar que Hoja 1 ("Resumen Ejecutivo") sea la activa al abrir el archivo
+    wb.active = ws_resumen
 
     stream = io.BytesIO()
     wb.save(stream)

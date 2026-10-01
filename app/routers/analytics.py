@@ -78,19 +78,16 @@ def obtener_rango_horario(hora: int) -> str:
     return "20:00 - 24:00"
 
 
-@router.get("/dashboard")
-def get_analytics_dashboard(
-    fecha_inicio: Optional[str] = Query(None, description="Fecha de inicio (YYYY-MM-DD)"),
-    fecha_fin: Optional[str] = Query(None, description="Fecha de fin (YYYY-MM-DD)"),
-    anio: Optional[int] = Query(None, description="Año a filtrar (ej. 2026)"),
-    db: Session = Depends(get_db),
-    admin_user: models.Usuario = Depends(get_current_admin_user)
-):
+def calcular_metricas_analytics(
+    db: Session,
+    fecha_inicio: Optional[str] = None,
+    fecha_fin: Optional[str] = None,
+    anio: Optional[int] = None
+) -> Dict[str, Any]:
     """
-    HU15: Endpoint central de HelpStream Analytics.
-    Proporciona KPIs dinámicos, series temporales para Chart.js, Top 5 de incidentes,
-    mapa de calor de demanda y tabla de resumen mensual con filtros de fecha y año.
-    Protegido con get_current_admin_user (403 Forbidden para usuarios no administradores).
+    Función central de cálculo de métricas para HelpStream Analytics.
+    Calcula KPIs, series temporales, Top 5 de incidentes, mapa de calor y resumen mensual
+    aplicando filtros opcionales de fecha_inicio, fecha_fin y anio.
     """
     ahora = datetime.utcnow()
     query = db.query(models.Ticket)
@@ -238,45 +235,79 @@ def get_analytics_dashboard(
     }
 
     # ==========================================
-    # 3. RESUMEN MENSUAL DEL AÑO SELECCIONADO
+    # 3. RESUMEN MENSUAL DEL PERÍODO / AÑO
     # ==========================================
-    tickets_anio = db.query(models.Ticket).filter(
-        models.Ticket.fecha_creacion >= datetime(anio_seleccionado, 1, 1),
-        models.Ticket.fecha_creacion <= datetime(anio_seleccionado, 12, 31, 23, 59, 59)
-    ).all()
+    if fecha_inicio or fecha_fin:
+        mensual_dict = defaultdict(lambda: {"total": 0, "resueltos": 0, "vencidos_sla": 0, "autoatencion": 0})
+        anios_meses_presentes = set()
+        for t in tickets_periodo:
+            fc = t.fecha_creacion or ahora
+            clave = (fc.year, fc.month)
+            anios_meses_presentes.add(clave)
+            mensual_dict[clave]["total"] += 1
+            if t.estado == "Resuelto":
+                mensual_dict[clave]["resueltos"] += 1
 
-    mensual_dict = defaultdict(lambda: {"total": 0, "resueltos": 0, "vencidos_sla": 0, "autoatencion": 0})
-    for t in tickets_anio:
-        fc = t.fecha_creacion or ahora
-        m = fc.month
-        mensual_dict[m]["total"] += 1
-        if t.estado == "Resuelto":
-            mensual_dict[m]["resueltos"] += 1
+            sla = calcular_metrica_ticket(t, ahora)
+            if sla.get("esta_vencido"):
+                mensual_dict[clave]["vencidos_sla"] += 1
 
-        sla = calcular_metrica_ticket(t, ahora)
-        if sla.get("esta_vencido"):
-            mensual_dict[m]["vencidos_sla"] += 1
+            if es_autoatencion(t):
+                mensual_dict[clave]["autoatencion"] += 1
 
-        if es_autoatencion(t):
-            mensual_dict[m]["autoatencion"] += 1
+        resumen_mensual = []
+        for anio_m, mes_num in sorted(list(anios_meses_presentes)):
+            data_m = mensual_dict[(anio_m, mes_num)]
+            tot = data_m["total"]
+            pct_sla = round(((tot - data_m["vencidos_sla"]) / tot) * 100, 1) if tot > 0 else 100.0
 
-    resumen_mensual = []
-    for mes_num in range(1, 13):
-        data_m = mensual_dict[mes_num]
-        tot = data_m["total"]
-        pct_sla = 100.0
-        if tot > 0:
-            pct_sla = round(((tot - data_m["vencidos_sla"]) / tot) * 100, 1)
+            resumen_mensual.append({
+                "mes": NOMBRES_MESES[mes_num - 1],
+                "mes_num": mes_num,
+                "anio": anio_m,
+                "total_atenciones": tot,
+                "incidentes_resueltos": data_m["resueltos"],
+                "cumplimiento_sla_porcentaje": pct_sla,
+                "horas_ahorradas": round(data_m["autoatencion"] * TIEMPO_PROMEDIO_HISTORICO_HORAS, 1)
+            })
+    else:
+        tickets_anio = db.query(models.Ticket).filter(
+            models.Ticket.fecha_creacion >= datetime(anio_seleccionado, 1, 1),
+            models.Ticket.fecha_creacion <= datetime(anio_seleccionado, 12, 31, 23, 59, 59)
+        ).all()
 
-        resumen_mensual.append({
-            "mes": NOMBRES_MESES[mes_num - 1],
-            "mes_num": mes_num,
-            "anio": anio_seleccionado,
-            "total_atenciones": tot,
-            "incidentes_resueltos": data_m["resueltos"],
-            "cumplimiento_sla_porcentaje": pct_sla,
-            "horas_ahorradas": round(data_m["autoatencion"] * TIEMPO_PROMEDIO_HISTORICO_HORAS, 1)
-        })
+        mensual_dict = defaultdict(lambda: {"total": 0, "resueltos": 0, "vencidos_sla": 0, "autoatencion": 0})
+        for t in tickets_anio:
+            fc = t.fecha_creacion or ahora
+            m = fc.month
+            mensual_dict[m]["total"] += 1
+            if t.estado == "Resuelto":
+                mensual_dict[m]["resueltos"] += 1
+
+            sla = calcular_metrica_ticket(t, ahora)
+            if sla.get("esta_vencido"):
+                mensual_dict[m]["vencidos_sla"] += 1
+
+            if es_autoatencion(t):
+                mensual_dict[m]["autoatencion"] += 1
+
+        resumen_mensual = []
+        for mes_num in range(1, 13):
+            data_m = mensual_dict[mes_num]
+            tot = data_m["total"]
+            pct_sla = 100.0
+            if tot > 0:
+                pct_sla = round(((tot - data_m["vencidos_sla"]) / tot) * 100, 1)
+
+            resumen_mensual.append({
+                "mes": NOMBRES_MESES[mes_num - 1],
+                "mes_num": mes_num,
+                "anio": anio_seleccionado,
+                "total_atenciones": tot,
+                "incidentes_resueltos": data_m["resueltos"],
+                "cumplimiento_sla_porcentaje": pct_sla,
+                "horas_ahorradas": round(data_m["autoatencion"] * TIEMPO_PROMEDIO_HISTORICO_HORAS, 1)
+            })
 
     return {
         "filtros_aplicados": {
@@ -294,3 +325,21 @@ def get_analytics_dashboard(
         },
         "resumen_mensual": resumen_mensual
     }
+
+
+@router.get("/dashboard")
+def get_analytics_dashboard(
+    fecha_inicio: Optional[str] = Query(None, description="Fecha de inicio (YYYY-MM-DD)"),
+    fecha_fin: Optional[str] = Query(None, description="Fecha de fin (YYYY-MM-DD)"),
+    anio: Optional[int] = Query(None, description="Año a filtrar (ej. 2026)"),
+    db: Session = Depends(get_db),
+    admin_user: models.Usuario = Depends(get_current_admin_user)
+):
+    """
+    HU15: Endpoint central de HelpStream Analytics.
+    Proporciona KPIs dinámicos, series temporales para Chart.js, Top 5 de incidentes,
+    mapa de calor de demanda y tabla de resumen mensual con filtros de fecha y año.
+    Protegido con get_current_admin_user (403 Forbidden para usuarios no administradores).
+    """
+    return calcular_metricas_analytics(db=db, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin, anio=anio)
+
