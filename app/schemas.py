@@ -95,6 +95,10 @@ class Token(BaseModel):
     rol: Optional[str] = None
     rol_nombre: Optional[str] = None
     user_id: Optional[int] = None
+    nombre: Optional[str] = None
+    nombre_completo: Optional[str] = None
+    nombres: Optional[str] = None
+    apellidos: Optional[str] = None
 
 class TokenData(BaseModel):
     user_id: Optional[int] = None

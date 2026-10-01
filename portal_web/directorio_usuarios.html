@@ -11,9 +11,12 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
     <!-- Custom Corporate Styles -->
     <link href="style.css" rel="stylesheet">
-    <!-- Protección de ruta: Redirigir a login si no hay token -->
+    <!-- Protección de ruta: Redirigir a login si no hay token o es usuario regular -->
     <script>
-        if (!localStorage.getItem('helpstream_token')) {
+        if (!localStorage.getItem('helpstream_token') || localStorage.getItem('helpstream_rol_id') === '1') {
+            if (localStorage.getItem('helpstream_rol_id') === '1') {
+                localStorage.clear();
+            }
             window.location.replace('login.html');
         }
     </script>
@@ -70,10 +73,10 @@
             </div>
             <div class="user-card d-flex align-items-center gap-2">
                 <div class="user-info text-end">
-                    <p class="name mb-0">Daniel Ruiz</p>
-                    <p class="role mb-0">- Analista TI</p>
+                    <p class="name mb-0 navbar-user-name" id="navbar-user-name">Daniel Ruiz</p>
+                    <p class="role mb-0 navbar-user-role" id="navbar-user-role">Analista TI</p>
                 </div>
-                <div class="user-avatar">
+                <div class="user-avatar navbar-user-initials" id="navbar-user-initials">
                     DR
                 </div>
                 <button class="btn btn-outline-danger btn-sm rounded-pill ms-2 px-3" onclick="cerrarSesion()" title="Cerrar sesión">

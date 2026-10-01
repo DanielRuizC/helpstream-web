@@ -12,10 +12,17 @@
         return;
     }
 
+    // Bloqueo estricto para usuarios regulares (rol_id 1) en páginas protegidas
+    const rolId = localStorage.getItem('helpstream_rol_id');
+    if (token && rolId === '1' && !esLogin) {
+        localStorage.clear();
+        window.location.replace('login.html');
+        return;
+    }
+
     // HU20: Restricción estricta en frontend para dashboard_gerencial.html
     if (token && path.endsWith('dashboard_gerencial.html')) {
         const rol = localStorage.getItem('helpstream_user_role');
-        const rolId = localStorage.getItem('helpstream_rol_id');
         if (rol && rol !== 'Jefe de TI' && rolId && rolId !== '3') {
             alert('Acceso denegado exclusivo para Jefatura. Redirigiendo a la mesa de ayuda...');
             window.location.replace('index.html');
@@ -88,12 +95,83 @@ async function iniciarSesion(correo, password) {
         }
 
         const data = await response.json();
+
+        // 1. Extraer y verificar inmediatamente el rol_id del usuario
+        let userRolId = (data.rol_id !== undefined && data.rol_id !== null) ? Number(data.rol_id) : null;
+        let tokenPayload = null;
+        if (data.access_token) {
+            try {
+                tokenPayload = JSON.parse(atob(data.access_token.split('.')[1]));
+                if (userRolId === null && tokenPayload && tokenPayload.rol_id !== undefined && tokenPayload.rol_id !== null) {
+                    userRolId = Number(tokenPayload.rol_id);
+                }
+            } catch (err) {
+                console.warn('No se pudo decodificar payload JWT:', err);
+            }
+        }
+
+        // =========================================================================
+        // Bloqueo de Acceso a Usuarios Regulares (rol_id === 1)
+        // El portal web es exclusivo para el equipo de TI. Bloquear inmediatamente,
+        // no guardar el token en localStorage y detener cualquier redirección.
+        // =========================================================================
+        if (userRolId === 1) {
+            throw new Error('Acceso denegado: El portal web es exclusivo para el equipo de TI. Por favor, utilice la aplicación móvil.');
+        }
+
+        // 2. Guardar credenciales y datos de sesión de personal TI en localStorage
         if (data.access_token) {
             localStorage.setItem('helpstream_token', data.access_token);
             localStorage.setItem('helpstream_token_type', data.token_type || 'bearer');
-            if (data.rol) localStorage.setItem('helpstream_user_role', data.rol);
-            if (data.rol_id) localStorage.setItem('helpstream_rol_id', String(data.rol_id));
+
+            // Determinar rol
+            let userRole = data.rol || data.rol_nombre;
+            if (!userRole && tokenPayload && tokenPayload.rol) {
+                userRole = tokenPayload.rol;
+            }
+            if (!userRole) {
+                if (userRolId === 3) userRole = 'Jefe de TI';
+                else if (userRolId === 2) userRole = 'Analista TI';
+                else userRole = 'Soporte TI';
+            }
+            localStorage.setItem('helpstream_user_role', userRole);
+            if (userRolId !== null) localStorage.setItem('helpstream_rol_id', String(userRolId));
             localStorage.setItem('helpstream_user_email', correo);
+
+            // Determinar nombre completo y guardarlo en localStorage
+            let nombreCompleto = data.nombre_completo || data.nombre;
+            if (!nombreCompleto && (data.nombres || data.apellidos)) {
+                nombreCompleto = `${data.nombres || ''} ${data.apellidos || ''}`.trim();
+            }
+            if (!nombreCompleto && tokenPayload) {
+                if (tokenPayload.nombre_completo || tokenPayload.nombre) {
+                    nombreCompleto = tokenPayload.nombre_completo || tokenPayload.nombre;
+                } else if (tokenPayload.nombres || tokenPayload.apellidos) {
+                    nombreCompleto = `${tokenPayload.nombres || ''} ${tokenPayload.apellidos || ''}`.trim();
+                }
+            }
+
+            // Fallback: si no viene en el token o respuesta, consultar al backend por correo
+            if (!nombreCompleto) {
+                try {
+                    const userRes = await fetch(`${ENDPOINTS.USUARIOS}/buscar?correo=${encodeURIComponent(correo)}`);
+                    if (userRes.ok) {
+                        const userObj = await userRes.json();
+                        nombreCompleto = `${userObj.nombres || ''} ${userObj.apellidos || ''}`.trim();
+                    }
+                } catch (err) {
+                    console.warn('No se pudo consultar detalle de usuario por correo:', err);
+                }
+            }
+
+            // Fallback final derivado del correo o rol
+            if (!nombreCompleto) {
+                const namePart = correo.split('@')[0].replace(/[._-]/g, ' ');
+                nombreCompleto = namePart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || userRole;
+            }
+
+            localStorage.setItem('helpstream_user_name', nombreCompleto);
+            localStorage.setItem('helpstream_user_fullname', nombreCompleto);
         }
         return data;
     } catch (error) {
@@ -109,7 +187,78 @@ function cerrarSesion() {
     localStorage.removeItem('helpstream_user_role');
     localStorage.removeItem('helpstream_rol_id');
     localStorage.removeItem('helpstream_user_email');
+    localStorage.removeItem('helpstream_user_name');
+    localStorage.removeItem('helpstream_user_fullname');
     window.location.replace('login.html');
+}
+
+// ==========================================
+// Datos Dinámicos en el Navbar / Top Header
+// ==========================================
+function calcularIniciales(nombreCompleto) {
+    if (!nombreCompleto || typeof nombreCompleto !== 'string') return 'TI';
+    const partes = nombreCompleto.trim().split(/\s+/).filter(Boolean);
+    if (partes.length === 0) return 'TI';
+    if (partes.length === 1) {
+        return partes[0].slice(0, 2).toUpperCase();
+    }
+    // Primera letra del primer nombre y primera letra del primer apellido
+    return (partes[0][0] + partes[1][0]).toUpperCase();
+}
+
+function actualizarDatosNavbar() {
+    const token = localStorage.getItem('helpstream_token');
+    const path = window.location.pathname;
+    const esLogin = path.endsWith('login.html') || path.endsWith('/login');
+    if (!token || esLogin) return;
+
+    let nombre = localStorage.getItem('helpstream_user_name') || localStorage.getItem('helpstream_user_fullname');
+    let rol = localStorage.getItem('helpstream_user_role');
+    const rolId = localStorage.getItem('helpstream_rol_id');
+    const email = localStorage.getItem('helpstream_user_email');
+
+    if (!rol) {
+        if (rolId === '3') rol = 'Jefe de TI';
+        else if (rolId === '2') rol = 'Analista TI';
+        else rol = 'Soporte TI';
+    }
+
+    if (!nombre && email) {
+        const usernamePart = email.split('@')[0].replace(/[._-]/g, ' ');
+        nombre = usernamePart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+    if (!nombre) {
+        nombre = (rol === 'Jefe de TI' || rolId === '3') ? 'Jefe de TI' : 'Analista TI';
+    }
+
+    const iniciales = calcularIniciales(nombre);
+
+    // Actualizar nombre completo en Navbar
+    const nameEls = document.querySelectorAll('#navbar-user-name, .navbar-user-name, #headerAdminNombre');
+    nameEls.forEach(el => {
+        el.textContent = nombre;
+    });
+
+    // Actualizar rol en Navbar
+    const roleEls = document.querySelectorAll('#navbar-user-role, .navbar-user-role, #headerAdminRol');
+    roleEls.forEach(el => {
+        el.textContent = rol;
+    });
+
+    // Actualizar iniciales en avatar circular
+    const initialEls = document.querySelectorAll('#navbar-user-initials, .navbar-user-initials, #headerAdminAvatar');
+    initialEls.forEach(el => {
+        el.textContent = iniciales;
+    });
+}
+window.actualizarDatosNavbar = actualizarDatosNavbar;
+window.calcularIniciales = calcularIniciales;
+
+// Ejecutar automáticamente al cargar cualquier página protegida
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', actualizarDatosNavbar);
+} else {
+    actualizarDatosNavbar();
 }
 
 // Conectar evento submit del formulario de login.html
@@ -148,29 +297,28 @@ function inicializarLogin(loginForm) {
         try {
             const data = await iniciarSesion(correo, password);
             if (data && data.access_token) {
+                // Doble validación preventiva por si rol_id es 1
+                const rolId = data.rol_id !== undefined ? Number(data.rol_id) : Number(localStorage.getItem('helpstream_rol_id'));
+                if (rolId === 1) {
+                    cerrarSesion();
+                    if (alertBox) {
+                        alertBox.textContent = 'Acceso denegado: El portal web es exclusivo para el equipo de TI. Por favor, utilice la aplicación móvil.';
+                        alertBox.classList.remove('d-none');
+                    }
+                    return;
+                }
+
                 // =========================================================================
                 // HU20: Bifurcación en el Login según el Rol de Usuario
                 // Si es "Jefe de TI", ejecuta window.location.replace('dashboard_gerencial.html')
                 // Si es analista o soporte técnico, mantén window.location.replace('index.html')
                 // =========================================================================
-                let userRole = data.rol || data.rol_nombre;
-                if (!userRole && data.rol_id === 3) {
+                let userRole = localStorage.getItem('helpstream_user_role') || data.rol || data.rol_nombre;
+                if (!userRole && (data.rol_id === 3 || rolId === 3)) {
                     userRole = 'Jefe de TI';
                 }
 
-                // Respaldo decodificando el JWT si no viniera explícito en el body
-                if (!userRole && data.access_token) {
-                    try {
-                        const payload = JSON.parse(atob(data.access_token.split('.')[1]));
-                        if (payload.rol_id === 3 || payload.rol === 'Jefe de TI' || payload.rol_code === 'jefe_ti') {
-                            userRole = 'Jefe de TI';
-                        }
-                    } catch (err) {
-                        console.warn('No se pudo decodificar payload JWT:', err);
-                    }
-                }
-
-                if (userRole === 'Jefe de TI' || data.rol_id === 3) {
+                if (userRole === 'Jefe de TI' || data.rol_id === 3 || rolId === 3) {
                     window.location.replace('dashboard_gerencial.html');
                 } else {
                     window.location.replace('index.html');
@@ -624,6 +772,9 @@ document.addEventListener("DOMContentLoaded", () => {
         inicializarLogin(loginForm);
         return;
     }
+
+    // Actualización dinámica de datos de usuario en el Navbar
+    actualizarDatosNavbar();
 
     // Inicialización del Menú Lateral en todas las páginas
     inicializarSidebar();
@@ -1199,14 +1350,8 @@ async function inicializarDashboardGerencial() {
         modalAuditoriaInstance = new bootstrap.Modal(modalEl);
     }
 
-    // Actualizar nombre y rol en cabecera si existe
-    const adminEmail = localStorage.getItem('helpstream_user_email');
-    const headerNombre = document.getElementById('headerAdminNombre');
-    if (adminEmail && headerNombre) {
-        const usernamePart = adminEmail.split('@')[0];
-        const capitalName = usernamePart.charAt(0).toUpperCase() + usernamePart.slice(1);
-        headerNombre.textContent = capitalName.toLowerCase().includes('jefe') ? 'Carlos Mendoza (Jefe TI)' : capitalName;
-    }
+    // Actualizar nombre, rol e iniciales dinámicamente en cabecera
+    actualizarDatosNavbar();
 
     // Configurar listeners de filtros
     const inputBuscar = document.getElementById('filtroBuscarTexto');

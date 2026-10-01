@@ -277,13 +277,27 @@ def login_local(credenciales: OAuth2PasswordRequestForm = Depends(), db: Session
         rol_display = "Usuario Planta"
         rol_code = "usuario_planta"
 
+    # Calcular nombre completo para el usuario autenticado
+    partes_nombre = []
+    if usuario.nombres:
+        partes_nombre.append(usuario.nombres.strip())
+    if usuario.apellidos:
+        partes_nombre.append(usuario.apellidos.strip())
+    nombre_completo = " ".join(partes_nombre).strip()
+    if not nombre_completo:
+        nombre_completo = usuario.correo.split("@")[0].capitalize() if usuario.correo else "Personal TI"
+
     payload = {
         "sub": str(usuario.id),
         "user_id": usuario.id,
         "rol_id": usuario.rol_id,
         "rol": rol_display,
         "rol_code": rol_code,
-        "correo": usuario.correo
+        "correo": usuario.correo,
+        "nombre": nombre_completo,
+        "nombre_completo": nombre_completo,
+        "nombres": usuario.nombres or "",
+        "apellidos": usuario.apellidos or ""
     }
     access_token = create_access_token(data=payload)
 
@@ -294,7 +308,11 @@ def login_local(credenciales: OAuth2PasswordRequestForm = Depends(), db: Session
         "rol_id": usuario.rol_id,
         "rol": rol_display,
         "rol_nombre": rol_display,
-        "user_id": usuario.id
+        "user_id": usuario.id,
+        "nombre": nombre_completo,
+        "nombre_completo": nombre_completo,
+        "nombres": usuario.nombres or "",
+        "apellidos": usuario.apellidos or ""
     }
 
 
