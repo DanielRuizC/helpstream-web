@@ -567,6 +567,9 @@ async function cargarDirectorioUsuarios() {
                     <a href="editar_usuario.html?correo=${encodeURIComponent(u.correo)}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
                         <i class="bi bi-pencil-square"></i> Editar
                     </a>
+                    <button class="btn btn-sm btn-outline-danger rounded-pill px-3 ms-2" onclick="eliminarUsuario(${u.id})">
+                        <i class="bi bi-trash"></i> Eliminar
+                    </button>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -576,6 +579,43 @@ async function cargarDirectorioUsuarios() {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger py-4">Error al cargar usuarios desde el servidor.</td></tr>';
     }
 }
+
+async function eliminarUsuario(id) {
+    const confirmacion = confirm('¿Está seguro que desea eliminar este usuario?');
+    if (!confirmacion) {
+        return;
+    }
+
+    try {
+        const token = localStorage.getItem('helpstream_token');
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`${API_URL}/api/usuarios/${id}`, {
+            method: 'DELETE',
+            headers: headers
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            const errorMsg = data.detail || 'Error al eliminar el usuario.';
+            alert(errorMsg);
+            return;
+        }
+
+        alert(data.mensaje || 'Usuario eliminado exitosamente.');
+        cargarDirectorioUsuarios();
+    } catch (err) {
+        console.error('Error al eliminar usuario:', err);
+        alert(err.message || 'Error de conexión con el servidor al intentar eliminar el usuario.');
+    }
+}
+window.eliminarUsuario = eliminarUsuario;
 
 document.addEventListener("DOMContentLoaded", () => {
     // Si estamos en login.html

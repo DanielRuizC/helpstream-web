@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional, Union
 from .. import models, schemas
 from ..database import get_db
@@ -9,6 +10,11 @@ from ..auth import verify_password, get_password_hash, create_access_token, deco
 router = APIRouter(
     prefix="/api/auth",
     tags=["Autenticación"]
+)
+
+usuarios_router = APIRouter(
+    prefix="/api/usuarios",
+    tags=["Usuarios"]
 )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login/local", auto_error=False)
@@ -191,6 +197,47 @@ def actualizar_usuario(usuario_id: int, datos: schemas.UsuarioUpdate, db: Sessio
     db.commit()
     db.refresh(usuario)
     return usuario
+
+
+@router.delete("/usuarios/{usuario_id}", status_code=status.HTTP_200_OK)
+@usuarios_router.delete("/{usuario_id}", status_code=status.HTTP_200_OK)
+def eliminar_usuario(
+    usuario_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_admin_user)
+):
+    """
+    Elimina un usuario de la base de datos por su ID.
+    Protegido para rol de administrador / Jefatura de TI (get_current_admin_user).
+    Si el usuario no existe, retorna 404.
+    Si el usuario tiene tickets asociados, captura IntegrityError, revierte la transacción con rollback() y retorna HTTP 400.
+    """
+    usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Usuario con ID {usuario_id} no encontrado."
+        )
+
+    try:
+        # Validar si el usuario tiene tickets asociados antes de proceder
+        ticket_asociado = db.query(models.Ticket).filter(
+            (models.Ticket.usuario_id == usuario_id) |
+            (models.Ticket.correo_solicitante == usuario.correo)
+        ).first()
+        if ticket_asociado:
+            raise IntegrityError(statement="tickets_usuario_fk", params=None, orig=Exception("Tickets asociados"))
+
+        db.delete(usuario)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se puede eliminar el usuario porque tiene tickets asociados. Por favor, edite el usuario y cambie su estado a Inactivo."
+        )
+
+    return {"mensaje": "Usuario eliminado exitosamente"}
 
 
 @router.post("/login/local", response_model=schemas.Token)

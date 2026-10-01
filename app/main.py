@@ -48,6 +48,7 @@ app.add_middleware(
 app.include_router(tickets.router)
 app.include_router(videos.router)
 app.include_router(auth.router)
+app.include_router(auth.usuarios_router)
 app.include_router(reportes.router)
 app.include_router(reportes.dashboard_router)
 app.include_router(analytics.router)
