@@ -10,5 +10,5 @@ python-dotenv
 python-multipart
 firebase-admin
 openpyxl
-pytz
+pytz>=2024.1
 google-generativeai
