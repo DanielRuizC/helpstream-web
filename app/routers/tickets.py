@@ -11,14 +11,6 @@ from ..database import get_db
 from ..auth import decode_access_token
 from ..utils.ia_analyzer import analizar_ticket_ia
 from ..timezone import LIMA_TZ, convertir_a_lima, formatear_fecha_lima
-
-# Inicializar Firebase Admin SDK si no ha sido inicializado previamente
-if not firebase_admin._apps:
-    try:
-        firebase_admin.initialize_app()
-    except Exception:
-        pass
-
 router = APIRouter(
     prefix="/tickets",
     tags=["tickets"],

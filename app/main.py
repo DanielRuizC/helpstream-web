@@ -5,6 +5,21 @@ import os
 import json
 import firebase_admin
 from firebase_admin import credentials
+
+# Inicialización de Firebase Admin SDK con credenciales explícitas (HU08)
+if not firebase_admin._apps:
+    try:
+        cred_json = os.environ.get("FIREBASE_CERT")
+        if cred_json:
+            cred_dict = json.loads(cred_json)
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+            print("[Firebase Admin] Inicializado exitosamente con FIREBASE_CERT.")
+        else:
+            print("[Firebase Admin] Variable FIREBASE_CERT no encontrada en el entorno.")
+    except Exception as e:
+        print(f"[Firebase Admin Error] Error al inicializar Firebase Admin: {e}")
+
 from . import models
 from .database import engine
 from .routers import tickets, videos, auth, reportes, analytics
@@ -19,15 +34,6 @@ try:
         conn.execute(text("ALTER TABLE tickets ADD COLUMN fecha_creacion DATETIME"))
 except Exception:
     pass # La columna ya existe o la tabla no está creada aún
-
-cert_string = os.environ.get('FIREBASE_CERT')
-if cert_string and not firebase_admin._apps:
-    try:
-        cert_dict = json.loads(cert_string)
-        cred = credentials.Certificate(cert_dict)
-        firebase_admin.initialize_app(cred)
-    except Exception as e:
-        print(f"Error al inicializar Firebase Admin: {e}")
 
 app = FastAPI(title="HelpStream Backend")
 
