@@ -9,6 +9,6 @@ psycopg2-binary
 python-dotenv
 python-multipart
 firebase-admin
-openpyxl>=3.1.0
-pytz>=2024.1
+openpyxl
+pytz
 google-generativeai
