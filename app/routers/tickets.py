@@ -200,13 +200,13 @@ def update_ticket_state(ticket_id: int, ticket_update: schemas.TicketUpdateEstad
         if not usuario_creador and db_ticket.correo_solicitante:
             usuario_creador = db.query(models.Usuario).filter(models.Usuario.correo == db_ticket.correo_solicitante.strip()).first()
 
-        if usuario_creador and usuario_creador.fcm_token:
+        if usuario_creador and usuario_creador.fcm_token and usuario_creador.fcm_token.strip():
             mensaje = messaging.Message(
                 notification=messaging.Notification(
-                    title="Actualización de Ticket",
-                    body=f"Tu ticket #{db_ticket.id} ahora está {nuevo_estado}"
+                    title=f"Ticket #{db_ticket.id} actualizado",
+                    body=f"El estado de tu ticket ha cambiado a: {nuevo_estado}"
                 ),
-                token=usuario_creador.fcm_token
+                token=usuario_creador.fcm_token.strip()
             )
             messaging.send(mensaje)
     except Exception as e:
