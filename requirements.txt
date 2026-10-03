@@ -11,3 +11,4 @@ python-multipart
 firebase-admin
 openpyxl
 pytz
+google-generativeai

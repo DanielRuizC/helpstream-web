@@ -9,8 +9,13 @@ from firebase_admin import messaging
 from .. import crud, models, schemas
 from ..database import get_db
 from ..auth import decode_access_token
-from ..utils.ia_analyzer import analizar_ticket_ia
+from ..utils.ia_analyzer import analizar_ticket_ia, extraer_palabras_clave_ia
 from ..timezone import LIMA_TZ, convertir_a_lima, formatear_fecha_lima
+import google.generativeai as genai
+
+# Configuración del servicio Gemini IA
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+
 router = APIRouter(
     prefix="/tickets",
     tags=["tickets"],
@@ -19,10 +24,20 @@ router = APIRouter(
 
 def formatear_ticket_response(db: Session, ticket: models.Ticket, usuario: Optional[models.Usuario] = None) -> models.Ticket:
     """
-    Enriquece el modelo Ticket con palabras clave generadas por IA, datos de contacto del creador
+    Enriquece el modelo Ticket con palabras clave estructuradas, datos de contacto del creador
     y convierte su fecha_creacion a la zona horaria America/Lima (UTC-5) (HU18).
     """
-    ticket.palabras_clave = analizar_ticket_ia(ticket.descripcion)["palabras_clave"]
+    if getattr(ticket, "palabras_clave", None) is not None:
+        if isinstance(ticket.palabras_clave, str):
+            ticket.palabras_clave = [p.strip() for p in ticket.palabras_clave.split(",") if p.strip()]
+        elif isinstance(ticket.palabras_clave, list):
+            pass
+        else:
+            ticket.palabras_clave = []
+    else:
+        # Fallback heurístico para tickets legacy que no tenían palabras clave en BD
+        ticket.palabras_clave = analizar_ticket_ia(ticket.descripcion)["palabras_clave"]
+
     creador_info = estructurar_info_creador(db, ticket, usuario=usuario)
     ticket.creador = creador_info
     ticket.usuario = creador_info
@@ -123,10 +138,16 @@ async def create_ticket(
         except (ValueError, TypeError):
             usuario_id = 1
 
+    # Extracción inteligente de palabras clave principales con Gemini AI
+    palabras_clave_ia = await extraer_palabras_clave_ia(descripcion)
+
     ia_result = analizar_ticket_ia(descripcion)
     # Si el usuario seleccionó una criticidad específica en el modal, se respeta; sino, se usa IA
     if not criticidad:
         criticidad = ia_result["criticidad"]
+
+    # Guardar palabras clave estructuradas relacionadas al ticket en la base de datos
+    palabras_clave_db = ", ".join(palabras_clave_ia) if palabras_clave_ia else ""
 
     db_ticket = models.Ticket(
         usuario_id=usuario_id,
@@ -135,7 +156,8 @@ async def create_ticket(
         criticidad=criticidad,
         correo_solicitante=correo,
         sede=sede,
-        piso=piso
+        piso=piso,
+        palabras_clave=palabras_clave_db
     )
     db.add(db_ticket)
     db.commit()

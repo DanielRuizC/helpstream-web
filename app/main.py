@@ -35,6 +35,12 @@ try:
 except Exception:
     pass # La columna ya existe o la tabla no está creada aún
 
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS palabras_clave VARCHAR"))
+except Exception:
+    pass
+
 app = FastAPI(title="HelpStream Backend")
 
 os.makedirs("static/videos", exist_ok=True)
