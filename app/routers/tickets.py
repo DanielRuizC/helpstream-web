@@ -9,7 +9,7 @@ from firebase_admin import messaging
 from .. import crud, models, schemas
 from ..database import get_db
 from ..auth import decode_access_token
-from ..utils.ia_analyzer import analizar_ticket_ia, extraer_palabras_clave_ia
+from ..utils.ia_analyzer import analizar_ticket_ia, extraer_palabras_clave_ia, analizar_ticket_heuristico
 from ..timezone import LIMA_TZ, convertir_a_lima, formatear_fecha_lima
 
 router = APIRouter(
@@ -32,7 +32,7 @@ def formatear_ticket_response(db: Session, ticket: models.Ticket, usuario: Optio
             ticket.palabras_clave = []
     else:
         # Fallback heurístico para tickets legacy que no tenían palabras clave en BD
-        ticket.palabras_clave = analizar_ticket_ia(ticket.descripcion)["palabras_clave"]
+        ticket.palabras_clave = analizar_ticket_heuristico(ticket.descripcion)["palabras_clave"]
 
     creador_info = estructurar_info_creador(db, ticket, usuario=usuario)
     ticket.creador = creador_info
@@ -134,13 +134,14 @@ async def create_ticket(
         except (ValueError, TypeError):
             usuario_id = 1
 
-    # Extracción inteligente de palabras clave principales con Gemini AI
-    palabras_clave_ia = await extraer_palabras_clave_ia(descripcion)
+    # Análisis inteligente con Gemini AI (palabras clave y criticidad)
+    ia_analisis = await analizar_ticket_ia(descripcion)
+    palabras_clave_ia = ia_analisis.get("palabras_clave", [])
+    criticidad_ia = ia_analisis.get("criticidad", "Media")
 
-    ia_result = analizar_ticket_ia(descripcion)
     # Si el usuario seleccionó una criticidad específica en el modal, se respeta; sino, se usa IA
     if not criticidad:
-        criticidad = ia_result["criticidad"]
+        criticidad = criticidad_ia
 
     # Guardar palabras clave estructuradas relacionadas al ticket en la base de datos
     palabras_clave_db = ", ".join(palabras_clave_ia) if palabras_clave_ia else ""

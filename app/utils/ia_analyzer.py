@@ -1,6 +1,7 @@
 import os
 import string
 import logging
+import json
 from typing import List
 from dotenv import load_dotenv
 from google import genai
@@ -16,14 +17,14 @@ except Exception:
 logger = logging.getLogger(__name__)
 
 
-async def extraer_palabras_clave_ia(descripcion: str) -> list[str]:
+async def analizar_ticket_ia(descripcion: str) -> dict:
     """
-    Función auxiliar asíncrona que extrae entre 2 y 5 palabras clave técnicas
-    principales de la descripción del problema utilizando el SDK google-genai (gemini-2.5-flash).
-    En caso de error de la API, captura la excepción y retorna una lista vacía.
+    Analiza la descripción del ticket utilizando Gemini AI (gemini-3.8-flash).
+    Extrae de 2 a 5 palabras clave técnicas y determina la criticidad (Baja, Media, Alta, Crítica).
+    En caso de error, retorna como respaldo seguro: {"palabras_clave": [], "criticidad": "Media"}.
     """
     if not descripcion or not descripcion.strip():
-        return []
+        return {"palabras_clave": [], "criticidad": "Media"}
 
     try:
         global client
@@ -32,30 +33,47 @@ async def extraer_palabras_clave_ia(descripcion: str) -> list[str]:
             client = genai.Client(api_key=api_key)
 
         prompt = (
-            f"Eres un analista de soporte técnico TI. Extrae entre 2 y 5 palabras clave técnicas principales "
-            f"de esta descripción de problema. Devuelve únicamente las palabras clave separadas por comas, "
-            f"sin texto adicional, sin viñetas y en minúsculas. Ignora verbos comunes, pronombres y conectores. "
+            f"Eres un analista de soporte técnico TI. Analiza esta descripción y extrae de 2 a 5 palabras clave técnicas. "
+            f"Además, determina el nivel de criticidad (Baja, Media, Alta, Crítica) según la urgencia "
+            f"(ej. caída de red = Crítica, atasco de papel = Baja). "
+            f"Devuelve ÚNICAMENTE un objeto JSON válido con la estructura: "
+            f'{{"palabras_clave": ["..."], "criticidad": "..."}} sin bloques de código markdown. '
             f"Descripción: {descripcion.strip()}"
         )
         response = await client.aio.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-3.8-flash',
             contents=prompt
         )
-        
+
         if not response or not response.text:
-            return []
+            return {"palabras_clave": [], "criticidad": "Media"}
 
         raw_text = response.text.strip()
-        # Limpieza de saltos de línea, viñetas o caracteres adicionales
-        cleaned_text = raw_text.replace("\n", ",").replace("*", "").replace("-", "")
-        palabras = [p.strip().lower() for p in cleaned_text.split(",") if p.strip()]
-        return palabras
+        cleaned_text = raw_text.replace("```json", "").replace("```", "").replace("`", "").strip()
+        data = json.loads(cleaned_text)
+
+        palabras = data.get("palabras_clave", [])
+        if not isinstance(palabras, list):
+            palabras = [str(palabras)]
+        criticidad = data.get("criticidad", "Media")
+
+        return {
+            "palabras_clave": [str(p).strip().lower() for p in palabras if str(p).strip()],
+            "criticidad": str(criticidad).strip().capitalize()
+        }
     except Exception as e:
-        logger.error(f"[Gemini AI Error] Error al extraer palabras clave: {e}")
-        return []
+        logger.error(f"[Gemini AI Error] Error al analizar ticket con IA: {e}")
+        return {"palabras_clave": [], "criticidad": "Media"}
 
 
-def analizar_ticket_ia(texto: str) -> dict:
+async def extraer_palabras_clave_ia(descripcion: str) -> list[str]:
+    """Función de compatibilidad retroactiva para extracción exclusiva de palabras clave."""
+    res = await analizar_ticket_ia(descripcion)
+    return res.get("palabras_clave", [])
+
+
+def analizar_ticket_heuristico(texto: str) -> dict:
+    """Función heurística síncrona de respaldo para tickets legacy."""
     texto_lower = texto.lower()
     
     # Extraer palabras clave (lógica heurística de respaldo)
@@ -64,17 +82,17 @@ def analizar_ticket_ia(texto: str) -> dict:
     stopwords = {"el", "la", "que", "de", "no", "se", "mi", "a", "en", "y", "los", "las", "un", "una", "por", "con", "para"}
     palabras = [palabra for palabra in texto_lower.split() if palabra not in stopwords]
     
-    # Determinar criticidad (Simulador IA de HU06)
+    # Determinar criticidad (Simulador de respaldo)
     palabras_criticas = {"fuga", "caida", "servidor", "red", "planta", "urgente", "fuego", "corto", "caldera", "apago", "bloqueo", "total"}
     palabras_bajas = {"impresora", "papel", "lento", "correo", "clave", "duda"}
     
-    criticidad = "Medio"
+    criticidad = "Media"
     for p in palabras:
         if p in palabras_criticas:
-            criticidad = "Crítico"
-            break  # Si es crítico, ya no buscamos más
+            criticidad = "Crítica"
+            break
         elif p in palabras_bajas:
-            criticidad = "Bajo"
+            criticidad = "Baja"
             
     return {
         "palabras_clave": palabras,

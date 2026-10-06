@@ -41,6 +41,12 @@ try:
 except Exception:
     pass
 
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS criticidad VARCHAR(50)"))
+except Exception:
+    pass
+
 app = FastAPI(title="HelpStream Backend")
 
 os.makedirs("static/videos", exist_ok=True)
