@@ -11,10 +11,6 @@ from ..database import get_db
 from ..auth import decode_access_token
 from ..utils.ia_analyzer import analizar_ticket_ia, extraer_palabras_clave_ia
 from ..timezone import LIMA_TZ, convertir_a_lima, formatear_fecha_lima
-import google.generativeai as genai
-
-# Configuración del servicio Gemini IA
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
 router = APIRouter(
     prefix="/tickets",

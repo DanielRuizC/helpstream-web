@@ -2,10 +2,16 @@ import os
 import string
 import logging
 from typing import List
-import google.generativeai as genai
+from dotenv import load_dotenv
+from google import genai
 
-# Configuración del Servicio de IA con Gemini
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+load_dotenv()
+
+# Instancia del nuevo cliente oficial Google GenAI
+try:
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+except Exception:
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY") or "AIzaSyDummyKeyForInitialization")
 
 logger = logging.getLogger(__name__)
 
@@ -13,21 +19,28 @@ logger = logging.getLogger(__name__)
 async def extraer_palabras_clave_ia(descripcion: str) -> list[str]:
     """
     Función auxiliar asíncrona que extrae entre 2 y 5 palabras clave técnicas
-    principales de la descripción del problema utilizando Google Gemini AI (gemini-1.5-flash).
+    principales de la descripción del problema utilizando el SDK google-genai (gemini-2.5-flash).
     En caso de error de la API, captura la excepción y retorna una lista vacía.
     """
     if not descripcion or not descripcion.strip():
         return []
 
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        global client
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if api_key and getattr(client, "_api_client", None) and getattr(client._api_client, "api_key", None) != api_key:
+            client = genai.Client(api_key=api_key)
+
         prompt = (
             f"Eres un analista de soporte técnico TI. Extrae entre 2 y 5 palabras clave técnicas principales "
             f"de esta descripción de problema. Devuelve únicamente las palabras clave separadas por comas, "
             f"sin texto adicional, sin viñetas y en minúsculas. Ignora verbos comunes, pronombres y conectores. "
             f"Descripción: {descripcion.strip()}"
         )
-        response = await model.generate_content_async(prompt)
+        response = await client.aio.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt
+        )
         
         if not response or not response.text:
             return []
