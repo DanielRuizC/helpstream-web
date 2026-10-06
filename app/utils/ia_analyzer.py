@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 async def analizar_ticket_ia(descripcion: str) -> dict:
     """
     Analiza la descripción del ticket utilizando Gemini AI (gemini-3.8-flash).
-    Si Gemini falla (error 503, cuota, etc.), ejecuta el fallback con Groq (llama-3.1-8b-instant).
+    Si Gemini falla (error 503, cuota, etc.), ejecuta el fallback con Groq (openai/gpt-oss-20b).
     Si ambos fallan, retorna como respaldo seguro: {"palabras_clave": [], "criticidad": "Media"}.
     """
     if not descripcion or not descripcion.strip():
@@ -77,7 +77,7 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
                 groq_client = AsyncGroq(api_key=groq_key)
 
             fallback_response = await groq_client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model="openai/gpt-oss-20b",
                 messages=[
                     {
                         "role": "system",
