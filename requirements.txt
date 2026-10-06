@@ -12,3 +12,4 @@ firebase-admin
 openpyxl
 pytz
 google-genai
+groq
