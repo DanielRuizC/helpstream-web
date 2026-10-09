@@ -258,6 +258,14 @@ body.sidebar-open .sidebar {
     background-color: #f8faff;
 }
 
+/* Truncado elegante de descripciones en tablas */
+.text-truncate-cell {
+    max-width: 250px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* Utilities */
 .badge-custom {
     padding: 6px 10px;

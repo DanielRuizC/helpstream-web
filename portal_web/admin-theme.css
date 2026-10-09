@@ -372,6 +372,13 @@ body.admin-executive-body {
     border-bottom: 2px solid var(--admin-border);
 }
 
+.text-truncate-cell {
+    max-width: 250px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .table-hover tbody tr:hover {
     background-color: rgba(211, 84, 0, 0.02) !important;
 }

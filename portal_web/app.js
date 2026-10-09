@@ -1155,7 +1155,7 @@ function renderTickets(tickets) {
             <td class="fw-bold text-muted">#${ticket.id}</td>
             <td>${usuarioHtml}</td>
             <td class="small text-muted">${fechaFormatted}</td>
-            <td style="max-width: 250px;" class="text-truncate" title="${ticket.descripcion}">${ticket.descripcion}</td>
+            <td style="max-width: 250px;" class="text-truncate text-truncate-cell" title="${ticket.descripcion}">${ticket.descripcion}</td>
             <td><span class="badge bg-light text-dark border">${ticket.sede || '-'}</span></td>
             <td><span class="badge bg-light text-dark border">${ticket.piso || '-'}</span></td>
             <td><span class="badge ${estadoBadge}">${ticket.estado}</span></td>
@@ -1288,18 +1288,150 @@ function obtenerBadgeEstado(estado) {
     }
 }
 
-// Lógica del Modal
+// Lógica del Modal (Ficha Completa del Incidente)
 function abrirModalGestion(id, estadoActual, comentarioActual) {
-    document.getElementById('modalTicketId').value = id;
-    document.getElementById('modalTicketIdTitle').textContent = id;
-    document.getElementById('modalEstado').value = estadoActual;
-    document.getElementById('modalComentario').value = comentarioActual;
+    const ticketId = Number(id) || id;
+    const ticket = allTickets.find(t => t.id === ticketId) || {};
+
+    // 1. Identificador y Encabezado
+    const idEl = document.getElementById('modalTicketId');
+    if (idEl) idEl.value = ticket.id || ticketId;
+
+    const titleEl = document.getElementById('modalTicketIdTitle');
+    if (titleEl) titleEl.textContent = ticket.id || ticketId;
+
+    // Fecha de Creación
+    const fechaEl = document.getElementById('modalTicketFechaCreacion');
+    if (fechaEl) {
+        const fechaVal = ticket.fecha_creacion;
+        if (fechaVal) {
+            try {
+                const d = new Date(fechaVal);
+                if (!isNaN(d.getTime())) {
+                    const dia = d.toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: '2-digit', month: '2-digit', year: 'numeric' });
+                    const hora = d.toLocaleTimeString('es-PE', { timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit', hour12: false });
+                    fechaEl.textContent = `Reportado el ${dia} a las ${hora}`;
+                } else {
+                    fechaEl.textContent = String(fechaVal);
+                }
+            } catch (e) {
+                fechaEl.textContent = String(fechaVal);
+            }
+        } else {
+            fechaEl.textContent = 'Fecha no disponible';
+        }
+    }
+
+    // Badge de Criticidad
+    const critBadgeEl = document.getElementById('modalTicketCriticidadBadge');
+    if (critBadgeEl) {
+        const crit = ticket.criticidad || 'Medio';
+        let critClass = 'badge-medio';
+        const cLower = crit.toLowerCase().trim();
+        switch (cLower) {
+            case 'crítico':
+            case 'critico':
+            case 'crítica':
+            case 'critica':
+                critClass = 'badge-critico';
+                break;
+            case 'alto':
+            case 'alta':
+                critClass = 'badge-alto';
+                break;
+            case 'medio':
+            case 'media':
+                critClass = 'badge-medio';
+                break;
+            case 'bajo':
+            case 'baja':
+                critClass = 'badge-bajo';
+                break;
+            default:
+                if (cLower.startsWith('cr')) critClass = 'badge-critico';
+                else if (cLower.startsWith('alt')) critClass = 'badge-alto';
+                else if (cLower.startsWith('baj')) critClass = 'badge-bajo';
+                else critClass = 'badge-medio';
+                break;
+        }
+        critBadgeEl.innerHTML = `<span class="badge ${critClass}">${crit}</span>`;
+    }
+
+    // 2. Información del Solicitante y Ubicación
+    const creador = ticket.creador || ticket.usuario || {};
+    const nombreCompleto = creador.nombre || (creador.nombres ? `${creador.nombres} ${creador.apellidos || ''}`.trim() : null) || (ticket.correo_solicitante ? ticket.correo_solicitante.split('@')[0] : (ticket.usuario_id ? `Usuario #${ticket.usuario_id}` : 'Usuario'));
+    const correoCompleto = creador.correo || ticket.correo_solicitante || 'Sin correo registrado';
+
+    const usuarioEl = document.getElementById('modalTicketUsuario');
+    if (usuarioEl) usuarioEl.textContent = nombreCompleto;
+
+    const correoEl = document.getElementById('modalTicketCorreo');
+    if (correoEl) correoEl.textContent = correoCompleto;
+
+    const sedeEl = document.getElementById('modalTicketSede');
+    if (sedeEl) sedeEl.textContent = ticket.sede || 'No especificada';
+
+    const pisoEl = document.getElementById('modalTicketPiso');
+    if (pisoEl) pisoEl.textContent = ticket.piso ? `Área/Piso: ${ticket.piso}` : 'No aplica / No especificado';
+
+    // 3. Descripción Completa (Sin truncar)
+    const descEl = document.getElementById('modalTicketDescripcion');
+    if (descEl) {
+        descEl.textContent = ticket.descripcion || 'Sin descripción detallada del problema.';
+    }
+
+    // 4. Palabras Clave generadas por IA
+    const tagsContainer = document.getElementById('modalTicketTags');
+    if (tagsContainer) {
+        let rawTags = ticket.palabras_clave || ticket.tags || [];
+        let tagsList = [];
+        if (Array.isArray(rawTags)) {
+            tagsList = rawTags.map(p => String(p).trim()).filter(Boolean);
+        } else if (typeof rawTags === 'string' && rawTags.trim()) {
+            tagsList = rawTags.split(',').map(p => p.trim()).filter(Boolean);
+        }
+
+        if (tagsList.length > 0) {
+            tagsContainer.innerHTML = tagsList.map(tag => {
+                const safeTag = String(tag).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                return `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1"><i class="bi bi-tag-fill me-1"></i>${safeTag}</span>`;
+            }).join(' ');
+        } else {
+            tagsContainer.innerHTML = '<span class="text-muted small fst-italic">Sin palabras clave detectadas</span>';
+        }
+    }
+
+    // Evidencia adjunta si existe
+    const evidContainer = document.getElementById('modalTicketEvidenciaContainer');
+    const evidLink = document.getElementById('modalTicketEvidenciaLink');
+    if (evidContainer && evidLink) {
+        if (ticket.evidencia_url) {
+            const href = ticket.evidencia_url.startsWith('http')
+                ? ticket.evidencia_url
+                : `${API_URL}${ticket.evidencia_url.startsWith('/') ? '' : '/'}${ticket.evidencia_url}`;
+            evidLink.href = href;
+            evidContainer.classList.remove('d-none');
+        } else {
+            evidContainer.classList.add('d-none');
+        }
+    }
+
+    // 5. Campos de Edición
+    const estadoEl = document.getElementById('modalEstado');
+    if (estadoEl) estadoEl.value = ticket.estado || estadoActual || 'Abierto';
+
+    const comentarioEl = document.getElementById('modalComentario');
+    if (comentarioEl) comentarioEl.value = ticket.comentario_tecnico || comentarioActual || '';
 
     const alerta = document.getElementById('modalAlert');
-    alerta.classList.add('d-none');
-    alerta.textContent = '';
+    if (alerta) {
+        alerta.classList.add('d-none');
+        alerta.textContent = '';
+    }
 
-    modalInstance.show();
+    if (modalInstance) {
+        modalInstance.show();
+    }
 }
 
 async function guardarGestion() {
