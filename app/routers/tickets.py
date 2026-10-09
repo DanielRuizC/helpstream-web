@@ -84,7 +84,7 @@ async def create_ticket(
     if "application/json" in content_type:
         body = await request.json()
         descripcion = body.get("descripcion", "")
-        criticidad = body.get("criticidad")
+        criticidad = body.get("criticidad") or body.get("criticidad_urgencia")
         usuario_id = body.get("usuario_id")
         correo = body.get("correo") or body.get("correo_solicitante")
         sede = body.get("sede")
@@ -96,6 +96,7 @@ async def create_ticket(
     else:
         form = await request.form()
         descripcion = form.get("descripcion", "")
+        criticidad = form.get("criticidad") or form.get("criticidad_urgencia")
         uid = form.get("usuario_id")
         if uid is not None and str(uid).isdigit():
             usuario_id = int(uid)
@@ -137,11 +138,38 @@ async def create_ticket(
     # Análisis inteligente con Gemini AI (palabras clave y criticidad)
     ia_analisis = await analizar_ticket_ia(descripcion)
     palabras_clave_ia = ia_analisis.get("palabras_clave", [])
-    criticidad_ia = ia_analisis.get("criticidad", "Media")
+    criticidad_ia = ia_analisis.get("criticidad_urgencia") or ia_analisis.get("criticidad", "Medio")
 
     # Si el usuario seleccionó una criticidad específica en el modal, se respeta; sino, se usa IA
     if not criticidad:
         criticidad = criticidad_ia
+
+    # Filtro de Seguridad: Mapeo para forzar la normalización estricta antes del db.commit()
+    MAPEO_CRITICIDAD = {
+        "alta": "Alto",
+        "alto": "Alto",
+        "media": "Medio",
+        "medio": "Medio",
+        "baja": "Bajo",
+        "bajo": "Bajo",
+        "crítica": "Crítico",
+        "critica": "Crítico",
+        "crítico": "Crítico",
+        "critico": "Crítico",
+    }
+    crit_key = str(criticidad).strip().lower() if criticidad else "medio"
+    if crit_key in MAPEO_CRITICIDAD:
+        criticidad = MAPEO_CRITICIDAD[crit_key]
+    elif crit_key.startswith("alt"):
+        criticidad = "Alto"
+    elif crit_key.startswith("med"):
+        criticidad = "Medio"
+    elif crit_key.startswith("baj"):
+        criticidad = "Bajo"
+    elif crit_key.startswith("cr"):
+        criticidad = "Crítico"
+    else:
+        criticidad = "Medio"
 
     # Guardar palabras clave estructuradas relacionadas al ticket en la base de datos
     palabras_clave_db = ", ".join(palabras_clave_ia) if palabras_clave_ia else ""

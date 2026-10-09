@@ -377,7 +377,7 @@ function inicializarFormNuevoTicket() {
         const correo = correoInput ? correoInput.value.trim() : '';
         const sede = sedeSelect ? sedeSelect.value : '';
         const piso = (pisoSelect && !pisoSelect.disabled) ? pisoSelect.value : '';
-        const criticidad = criticidadInput ? criticidadInput.value : 'Media';
+        const criticidad = criticidadInput ? criticidadInput.value : 'Medio';
         const descripcion = descripcionInput ? descripcionInput.value.trim() : '';
 
         if (!correo) {
@@ -1000,8 +1000,13 @@ function aplicarFiltros() {
         // 2. Filtro por Criticidad
         let matchesCriticidad = true;
         if (criticidadFilter !== 'Todos') {
-            const crit = ticket.criticidad || 'Medio';
-            matchesCriticidad = crit === criticidadFilter;
+            const crit = (ticket.criticidad || 'Medio').toLowerCase();
+            const filterCrit = criticidadFilter.toLowerCase();
+            matchesCriticidad = (crit === filterCrit) ||
+                (filterCrit.startsWith('alt') && crit.startsWith('alt')) ||
+                (filterCrit.startsWith('med') && crit.startsWith('med')) ||
+                (filterCrit.startsWith('baj') && crit.startsWith('baj')) ||
+                (filterCrit.startsWith('cr') && crit.startsWith('cr'));
         }
 
         // 3. Filtro por Estado
@@ -1065,11 +1070,37 @@ function renderTickets(tickets) {
         
         // Badge Criticidad
         const criticidad = ticket.criticidad || "Medio";
-        let criticidadBadge = "bg-secondary";
-        if (criticidad === "Crítico" || criticidad === "Alto") {
-            criticidadBadge = "bg-danger";
-        } else if (criticidad === "Medio" || criticidad === "Bajo") {
-            criticidadBadge = "bg-warning text-dark";
+        let criticidadBadge = "badge-medio";
+        switch (criticidad.toLowerCase().trim()) {
+            case "crítico":
+            case "critico":
+            case "crítica":
+            case "critica":
+                criticidadBadge = "badge-critico";
+                break;
+            case "alto":
+            case "alta":
+                criticidadBadge = "badge-alto";
+                break;
+            case "medio":
+            case "media":
+                criticidadBadge = "badge-medio";
+                break;
+            case "bajo":
+            case "baja":
+                criticidadBadge = "badge-bajo";
+                break;
+            default:
+                if (criticidad.toLowerCase().startsWith("cr")) {
+                    criticidadBadge = "badge-critico";
+                } else if (criticidad.toLowerCase().startsWith("alt")) {
+                    criticidadBadge = "badge-alto";
+                } else if (criticidad.toLowerCase().startsWith("baj")) {
+                    criticidadBadge = "badge-bajo";
+                } else {
+                    criticidadBadge = "badge-medio";
+                }
+                break;
         }
 
         // HU18: Columna SLA y atributos data para el temporizador en tiempo real
@@ -1655,12 +1686,40 @@ function renderizarTablaReportes(tickets) {
         }
 
         // Criticidad Badge
-        let critBadge = '<span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25">Media</span>';
-        if (t.criticidad === 'Alta') {
-            critBadge = '<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 fw-bold">Alta</span>';
-        } else if (t.criticidad === 'Baja') {
-            critBadge = '<span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25">Baja</span>';
+        const critTexto = t.criticidad || 'Medio';
+        let critBadgeClass = 'badge-medio';
+        switch (critTexto.toLowerCase().trim()) {
+            case 'crítico':
+            case 'critico':
+            case 'crítica':
+            case 'critica':
+                critBadgeClass = 'badge-critico';
+                break;
+            case 'alto':
+            case 'alta':
+                critBadgeClass = 'badge-alto';
+                break;
+            case 'medio':
+            case 'media':
+                critBadgeClass = 'badge-medio';
+                break;
+            case 'bajo':
+            case 'baja':
+                critBadgeClass = 'badge-bajo';
+                break;
+            default:
+                if (critTexto.toLowerCase().startsWith('cr')) {
+                    critBadgeClass = 'badge-critico';
+                } else if (critTexto.toLowerCase().startsWith('alt')) {
+                    critBadgeClass = 'badge-alto';
+                } else if (critTexto.toLowerCase().startsWith('baj')) {
+                    critBadgeClass = 'badge-bajo';
+                } else {
+                    critBadgeClass = 'badge-medio';
+                }
+                break;
         }
+        let critBadge = `<span class="badge ${critBadgeClass}">${critTexto}</span>`;
 
         // Estado Ticket Badge
         let estadoBadge = '<span class="badge bg-secondary">Abierto</span>';

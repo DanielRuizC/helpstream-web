@@ -24,14 +24,29 @@ except Exception:
 logger = logging.getLogger(__name__)
 
 
+def normalizar_criticidad(valor: str) -> str:
+    if not valor:
+        return "Medio"
+    v = str(valor).strip().lower()
+    if v.startswith("alt"):
+        return "Alto"
+    elif v.startswith("med"):
+        return "Medio"
+    elif v.startswith("baj"):
+        return "Bajo"
+    elif v.startswith("crític") or v.startswith("critic") or v.startswith("cr"):
+        return "Crítico"
+    return "Medio"
+
+
 async def analizar_ticket_ia(descripcion: str) -> dict:
     """
     Analiza la descripción del ticket utilizando Gemini AI (gemini-3.8-flash).
     Si Gemini falla (error 503, cuota, etc.), ejecuta el fallback con Groq (openai/gpt-oss-20b).
-    Si ambos fallan, retorna como respaldo seguro: {"palabras_clave": [], "criticidad": "Media"}.
+    Si ambos fallan, retorna como respaldo seguro: {"palabras_clave": [], "criticidad": "Medio", "criticidad_urgencia": "Medio"}.
     """
     if not descripcion or not descripcion.strip():
-        return {"palabras_clave": [], "criticidad": "Media"}
+        return {"palabras_clave": [], "criticidad": "Medio", "criticidad_urgencia": "Medio"}
 
     try:
         global client
@@ -41,10 +56,9 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
 
         prompt = (
             f"Eres un analista de soporte técnico TI. Analiza esta descripción y extrae de 2 a 5 palabras clave técnicas. "
-            f"Además, determina el nivel de criticidad (Baja, Media, Alta, Crítica) según la urgencia "
-            f"(ej. caída de red = Crítica, atasco de papel = Baja). "
+            f"El campo criticidad_urgencia DEBE ser EXACTAMENTE uno de estos cuatro valores, sin alterar el género: 'Crítico', 'Alto', 'Medio', 'Bajo'. "
             f"Devuelve ÚNICAMENTE un objeto JSON válido con la estructura: "
-            f'{{"palabras_clave": ["..."], "criticidad": "..."}} sin bloques de código markdown. '
+            f'{{"palabras_clave": ["..."], "criticidad_urgencia": "..."}} sin bloques de código markdown. '
             f"Descripción: {descripcion.strip()}"
         )
         response = await client.aio.models.generate_content(
@@ -62,11 +76,13 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
         palabras = data.get("palabras_clave", [])
         if not isinstance(palabras, list):
             palabras = [str(palabras)]
-        criticidad = data.get("criticidad", "Media")
+        raw_crit = data.get("criticidad_urgencia") or data.get("criticidad", "Medio")
+        criticidad = normalizar_criticidad(raw_crit)
 
         return {
             "palabras_clave": [str(p).strip().lower() for p in palabras if str(p).strip()],
-            "criticidad": str(criticidad).strip().capitalize()
+            "criticidad": criticidad,
+            "criticidad_urgencia": criticidad
         }
     except Exception as e_gemini:
         logger.warning(f"[Gemini AI Fallback Triggered] Falla en Gemini ({e_gemini}). Activando fallback Groq Llama3...")
@@ -83,9 +99,9 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
                         "role": "system",
                         "content": (
                             "Eres un analista de soporte técnico TI. Analiza esta descripción y extrae de 2 a 5 palabras clave técnicas. "
-                            "Además, determina el nivel de criticidad (Baja, Media, Alta, Crítica). "
+                            "El campo criticidad_urgencia DEBE ser EXACTAMENTE uno de estos cuatro valores, sin alterar el género: 'Crítico', 'Alto', 'Medio', 'Bajo'. "
                             "Devuelve ÚNICAMENTE un objeto JSON válido con la estructura: "
-                            "{\"palabras_clave\": [\"...\"], \"criticidad\": \"...\"} sin bloques de código markdown ni texto adicional."
+                            "{\"palabras_clave\": [\"...\"], \"criticidad_urgencia\": \"...\"} sin bloques de código markdown ni texto adicional."
                         )
                     },
                     {"role": "user", "content": descripcion}
@@ -100,15 +116,17 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
             palabras = data_fallback.get("palabras_clave", [])
             if not isinstance(palabras, list):
                 palabras = [str(palabras)]
-            criticidad = data_fallback.get("criticidad", "Media")
+            raw_crit = data_fallback.get("criticidad_urgencia") or data_fallback.get("criticidad", "Medio")
+            criticidad = normalizar_criticidad(raw_crit)
 
             return {
                 "palabras_clave": [str(p).strip().lower() for p in palabras if str(p).strip()],
-                "criticidad": str(criticidad).strip().capitalize()
+                "criticidad": criticidad,
+                "criticidad_urgencia": criticidad
             }
         except Exception as e_groq:
             logger.error(f"[Groq AI Fallback Error] Falló el servicio Groq de contingencia: {e_groq}")
-            return {"palabras_clave": [], "criticidad": "Media"}
+            return {"palabras_clave": [], "criticidad": "Medio", "criticidad_urgencia": "Medio"}
 
 
 async def extraer_palabras_clave_ia(descripcion: str) -> list[str]:
@@ -131,15 +149,16 @@ def analizar_ticket_heuristico(texto: str) -> dict:
     palabras_criticas = {"fuga", "caida", "servidor", "red", "planta", "urgente", "fuego", "corto", "caldera", "apago", "bloqueo", "total"}
     palabras_bajas = {"impresora", "papel", "lento", "correo", "clave", "duda"}
     
-    criticidad = "Media"
+    criticidad = "Medio"
     for p in palabras:
         if p in palabras_criticas:
-            criticidad = "Crítica"
+            criticidad = "Crítico"
             break
         elif p in palabras_bajas:
-            criticidad = "Baja"
+            criticidad = "Bajo"
             
     return {
         "palabras_clave": palabras,
-        "criticidad": criticidad
+        "criticidad": criticidad,
+        "criticidad_urgencia": criticidad
     }

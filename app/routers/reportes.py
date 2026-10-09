@@ -61,7 +61,7 @@ def calcular_metrica_ticket(ticket: models.Ticket, ahora: Optional[datetime] = N
     else:
         ahora = ahora.astimezone(LIMA_TZ)
 
-    criticidad = ticket.criticidad or "Media"
+    criticidad = ticket.criticidad or "Medio"
     sla_limite = SLA_LIMITES_HORAS.get(criticidad, 72)
     
     fecha_creacion = convertir_a_lima(ticket.fecha_creacion) or ahora
@@ -141,16 +141,17 @@ def generar_resumen_ejecutivo(db: Session) -> Dict[str, Any]:
             resueltos += 1
 
         # Criticidad
-        crit_normalizada = "Media"
-        if t.criticidad in ["Alta", "Alto", "Crítico", "Critico"]:
-            crit_normalizada = "Alta"
+        crit_normalizada = "Medio"
+        if t.criticidad in ["Alta", "Alto", "Crítico", "Critico", "Crítica", "Critica"]:
+            crit_normalizada = "Alto"
             por_criticidad["Alta"] += 1
             if t.estado != "Resuelto":
                 criticos_alta += 1
         elif t.criticidad in ["Baja", "Bajo"]:
-            crit_normalizada = "Baja"
+            crit_normalizada = "Bajo"
             por_criticidad["Baja"] += 1
         else:
+            crit_normalizada = "Medio"
             por_criticidad["Media"] += 1
 
         # Sede
@@ -514,7 +515,7 @@ def exportar_reportes_excel(
         solicitante_nombre = creador_info.nombre or ticket.correo_solicitante or (f"Usuario #{ticket.usuario_id}" if ticket.usuario_id else "Usuario")
 
         sede = ticket.sede or "-"
-        criticidad = ticket.criticidad or "Media"
+        criticidad = ticket.criticidad or "Medio"
         estado = ticket.estado or "Abierto"
 
         sla_info = calcular_metrica_ticket(ticket, ahora)

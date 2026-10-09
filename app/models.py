@@ -47,7 +47,7 @@ class Ticket(Base):
     estado = Column(String, default="Abierto")
     comentario_tecnico = Column(Text, nullable=True)
     evidencia_url = Column(String, nullable=True)
-    criticidad = Column(String, nullable=True, default="Media")
+    criticidad = Column(String, nullable=True, default="Medio")
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
     correo_solicitante = Column(String, nullable=True)
     sede = Column(String, nullable=True)

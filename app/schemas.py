@@ -118,7 +118,7 @@ class TicketBase(BaseModel):
     correo_solicitante: Optional[str] = None
     sede: Optional[str] = None
     piso: Optional[str] = None
-    criticidad: Optional[str] = "Media"
+    criticidad: Optional[str] = "Medio"
 
 class TicketCreate(TicketBase):
     pass
@@ -132,7 +132,7 @@ class TicketResponse(TicketBase):
     estado: str
     comentario_tecnico: Optional[str] = None
     evidencia_url: Optional[str] = None
-    criticidad: Optional[str] = "Media"
+    criticidad: Optional[str] = "Medio"
     fecha_creacion: Optional[datetime] = None
     palabras_clave: List[str] = []
     creador: Optional[UsuarioCreador] = None

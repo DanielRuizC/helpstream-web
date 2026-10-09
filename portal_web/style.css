@@ -266,6 +266,43 @@ body.sidebar-open .sidebar {
     font-size: 0.8rem;
 }
 
+/* Badges de Criticidad / Urgencia Estandarizados */
+.badge-critico,
+.badge-alto,
+.badge-medio,
+.badge-bajo {
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    display: inline-block;
+    text-align: center;
+}
+
+.badge-critico {
+    background-color: #dc3545 !important;
+    color: #ffffff !important;
+    border: 1px solid #b02a37;
+}
+
+.badge-alto {
+    background-color: #fd7e14 !important;
+    color: #ffffff !important;
+    border: 1px solid #d35400;
+}
+
+.badge-medio {
+    background-color: #ffc107 !important;
+    color: #212529 !important;
+    border: 1px solid #d39e00;
+}
+
+.badge-bajo {
+    background-color: #0dcaf0 !important;
+    color: #212529 !important;
+    border: 1px solid #0aa2c0;
+}
+
 .filters-bar {
     background: var(--card-bg);
     padding: 15px 20px;
