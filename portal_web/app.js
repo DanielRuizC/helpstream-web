@@ -928,6 +928,7 @@ async function cargarTickets() {
         if (!response.ok) throw new Error("Error al cargar los tickets");
         
         allTickets = await response.json();
+        window.allTickets = allTickets; // Asegurar referencia global accesible
         
         // Inicializar vistas
         calcularMetricas(allTickets);
@@ -1164,7 +1165,7 @@ function renderTickets(tickets) {
             <td>${evidenciaHtml}</td>
             <td style="max-width: 200px;" class="text-truncate" title="${ticket.comentario_tecnico || ''}">${ticket.comentario_tecnico || '-'}</td>
             <td>
-                <button class="btn btn-sm btn-primary badge-custom" onclick="abrirModalGestion(${ticket.id}, '${ticket.estado}', '${ticket.comentario_tecnico ? ticket.comentario_tecnico.replace(/'/g, "\\'") : ''}')">
+                <button class="btn btn-sm btn-primary badge-custom" onclick="abrirModalGestion(${ticket.id})">
                     <i class="bi bi-pencil-square"></i> Gestionar
                 </button>
             </td>
@@ -1289,148 +1290,212 @@ function obtenerBadgeEstado(estado) {
 }
 
 // Lógica del Modal (Ficha Completa del Incidente)
-function abrirModalGestion(id, estadoActual, comentarioActual) {
-    const ticketId = Number(id) || id;
-    const ticket = allTickets.find(t => t.id === ticketId) || {};
+function abrirModalGestion(ticketOrId, estadoActual, comentarioActual) {
+    try {
+        // 0. Resolver el objeto ticket de forma segura (admite id numérico, string o el propio objeto)
+        let ticket = null;
+        if (ticketOrId && typeof ticketOrId === 'object' && ticketOrId.id !== undefined) {
+            ticket = ticketOrId;
+        } else if (ticketOrId !== undefined && ticketOrId !== null) {
+            const searchId = String(ticketOrId).trim();
+            const pool = (Array.isArray(allTickets) && allTickets.length > 0)
+                ? allTickets
+                : (Array.isArray(window.allTickets) && window.allTickets.length > 0)
+                    ? window.allTickets
+                    : (Array.isArray(window.allGerencialTickets) ? window.allGerencialTickets : []);
+            ticket = pool.find(t => String(t?.id) === searchId) || null;
+        }
 
-    // 1. Identificador y Encabezado
-    const idEl = document.getElementById('modalTicketId');
-    if (idEl) idEl.value = ticket.id || ticketId;
+        const resolvedId = ticket?.id ?? (typeof ticketOrId !== 'object' ? ticketOrId : '') ?? '';
 
-    const titleEl = document.getElementById('modalTicketIdTitle');
-    if (titleEl) titleEl.textContent = ticket.id || ticketId;
+        // 1. Identificador y Encabezado
+        const idEl = document.getElementById('modalTicketId');
+        if (idEl) idEl.value = resolvedId || '';
 
-    // Fecha de Creación
-    const fechaEl = document.getElementById('modalTicketFechaCreacion');
-    if (fechaEl) {
-        const fechaVal = ticket.fecha_creacion;
-        if (fechaVal) {
-            try {
-                const d = new Date(fechaVal);
-                if (!isNaN(d.getTime())) {
-                    const dia = d.toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: '2-digit', month: '2-digit', year: 'numeric' });
-                    const hora = d.toLocaleTimeString('es-PE', { timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit', hour12: false });
-                    fechaEl.textContent = `Reportado el ${dia} a las ${hora}`;
-                } else {
+        const titleEl = document.getElementById('modalTicketIdTitle');
+        if (titleEl) titleEl.textContent = resolvedId || '-';
+
+        // Fecha de Creación
+        const fechaEl = document.getElementById('modalTicketFechaCreacion');
+        if (fechaEl) {
+            const fechaVal = ticket?.fecha_creacion;
+            if (fechaVal) {
+                try {
+                    const d = new Date(fechaVal);
+                    if (!isNaN(d.getTime())) {
+                        const dia = d.toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: '2-digit', month: '2-digit', year: 'numeric' });
+                        const hora = d.toLocaleTimeString('es-PE', { timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit', hour12: false });
+                        fechaEl.textContent = `Reportado el ${dia} a las ${hora}`;
+                    } else {
+                        fechaEl.textContent = String(fechaVal);
+                    }
+                } catch (_) {
                     fechaEl.textContent = String(fechaVal);
                 }
-            } catch (e) {
-                fechaEl.textContent = String(fechaVal);
+            } else {
+                fechaEl.textContent = 'Fecha no disponible';
             }
-        } else {
-            fechaEl.textContent = 'Fecha no disponible';
-        }
-    }
-
-    // Badge de Criticidad
-    const critBadgeEl = document.getElementById('modalTicketCriticidadBadge');
-    if (critBadgeEl) {
-        const crit = ticket.criticidad || 'Medio';
-        let critClass = 'badge-medio';
-        const cLower = crit.toLowerCase().trim();
-        switch (cLower) {
-            case 'crítico':
-            case 'critico':
-            case 'crítica':
-            case 'critica':
-                critClass = 'badge-critico';
-                break;
-            case 'alto':
-            case 'alta':
-                critClass = 'badge-alto';
-                break;
-            case 'medio':
-            case 'media':
-                critClass = 'badge-medio';
-                break;
-            case 'bajo':
-            case 'baja':
-                critClass = 'badge-bajo';
-                break;
-            default:
-                if (cLower.startsWith('cr')) critClass = 'badge-critico';
-                else if (cLower.startsWith('alt')) critClass = 'badge-alto';
-                else if (cLower.startsWith('baj')) critClass = 'badge-bajo';
-                else critClass = 'badge-medio';
-                break;
-        }
-        critBadgeEl.innerHTML = `<span class="badge ${critClass}">${crit}</span>`;
-    }
-
-    // 2. Información del Solicitante y Ubicación
-    const creador = ticket.creador || ticket.usuario || {};
-    const nombreCompleto = creador.nombre || (creador.nombres ? `${creador.nombres} ${creador.apellidos || ''}`.trim() : null) || (ticket.correo_solicitante ? ticket.correo_solicitante.split('@')[0] : (ticket.usuario_id ? `Usuario #${ticket.usuario_id}` : 'Usuario'));
-    const correoCompleto = creador.correo || ticket.correo_solicitante || 'Sin correo registrado';
-
-    const usuarioEl = document.getElementById('modalTicketUsuario');
-    if (usuarioEl) usuarioEl.textContent = nombreCompleto;
-
-    const correoEl = document.getElementById('modalTicketCorreo');
-    if (correoEl) correoEl.textContent = correoCompleto;
-
-    const sedeEl = document.getElementById('modalTicketSede');
-    if (sedeEl) sedeEl.textContent = ticket.sede || 'No especificada';
-
-    const pisoEl = document.getElementById('modalTicketPiso');
-    if (pisoEl) pisoEl.textContent = ticket.piso ? `Área/Piso: ${ticket.piso}` : 'No aplica / No especificado';
-
-    // 3. Descripción Completa (Sin truncar)
-    const descEl = document.getElementById('modalTicketDescripcion');
-    if (descEl) {
-        descEl.textContent = ticket.descripcion || 'Sin descripción detallada del problema.';
-    }
-
-    // 4. Palabras Clave generadas por IA
-    const tagsContainer = document.getElementById('modalTicketTags');
-    if (tagsContainer) {
-        let rawTags = ticket.palabras_clave || ticket.tags || [];
-        let tagsList = [];
-        if (Array.isArray(rawTags)) {
-            tagsList = rawTags.map(p => String(p).trim()).filter(Boolean);
-        } else if (typeof rawTags === 'string' && rawTags.trim()) {
-            tagsList = rawTags.split(',').map(p => p.trim()).filter(Boolean);
         }
 
-        if (tagsList.length > 0) {
-            tagsContainer.innerHTML = tagsList.map(tag => {
-                const safeTag = String(tag).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                return `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1"><i class="bi bi-tag-fill me-1"></i>${safeTag}</span>`;
-            }).join(' ');
-        } else {
-            tagsContainer.innerHTML = '<span class="text-muted small fst-italic">Sin palabras clave detectadas</span>';
+        // Badge de Criticidad
+        const critBadgeEl = document.getElementById('modalTicketCriticidadBadge');
+        if (critBadgeEl) {
+            const crit = ticket?.criticidad || 'Medio';
+            let critClass = 'badge-medio';
+            const cLower = String(crit).toLowerCase().trim();
+            if (cLower.startsWith('cr')) critClass = 'badge-critico';
+            else if (cLower.startsWith('alt')) critClass = 'badge-alto';
+            else if (cLower.startsWith('baj')) critClass = 'badge-bajo';
+            else critClass = 'badge-medio';
+            critBadgeEl.innerHTML = `<span class="badge ${critClass}">${crit}</span>`;
         }
-    }
 
-    // Evidencia adjunta si existe
-    const evidContainer = document.getElementById('modalTicketEvidenciaContainer');
-    const evidLink = document.getElementById('modalTicketEvidenciaLink');
-    if (evidContainer && evidLink) {
-        if (ticket.evidencia_url) {
-            const href = ticket.evidencia_url.startsWith('http')
-                ? ticket.evidencia_url
-                : `${API_URL}${ticket.evidencia_url.startsWith('/') ? '' : '/'}${ticket.evidencia_url}`;
-            evidLink.href = href;
-            evidContainer.classList.remove('d-none');
-        } else {
-            evidContainer.classList.add('d-none');
+        // 2. Información del Solicitante y Ubicación
+        // Soporta llaves directas del backend (nombre_usuario, solicitante) y objetos anidados (usuario, creador)
+        let nombreUsuario = ticket?.nombre_usuario 
+            || ticket?.solicitante 
+            || ticket?.usuario?.nombre 
+            || ticket?.creador?.nombre;
+
+        if (!nombreUsuario && ticket?.creador?.nombres) {
+            nombreUsuario = `${ticket.creador.nombres} ${ticket.creador.apellidos || ''}`.trim();
         }
-    }
+        if (!nombreUsuario && ticket?.usuario?.nombres) {
+            nombreUsuario = `${ticket.usuario.nombres} ${ticket.usuario.apellidos || ''}`.trim();
+        }
+        if (!nombreUsuario && ticket?.correo_solicitante) {
+            const cleanPart = ticket.correo_solicitante.split('@')[0].replace(/[._-]/g, ' ');
+            nombreUsuario = cleanPart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        }
+        if (!nombreUsuario && ticket?.usuario_id) {
+            nombreUsuario = `Usuario #${ticket.usuario_id}`;
+        }
+        if (!nombreUsuario || String(nombreUsuario).trim() === '' || String(nombreUsuario).trim() === '-') {
+            nombreUsuario = 'No especificado';
+        }
 
-    // 5. Campos de Edición
-    const estadoEl = document.getElementById('modalEstado');
-    if (estadoEl) estadoEl.value = ticket.estado || estadoActual || 'Abierto';
+        const usuarioEl = document.getElementById('modalTicketUsuario');
+        if (usuarioEl) {
+            usuarioEl.textContent = nombreUsuario;
+        }
 
-    const comentarioEl = document.getElementById('modalComentario');
-    if (comentarioEl) comentarioEl.value = ticket.comentario_tecnico || comentarioActual || '';
+        const correoVal = ticket?.correo 
+            || ticket?.correo_solicitante 
+            || ticket?.usuario?.correo 
+            || ticket?.creador?.correo;
+        const correoUsuario = (correoVal && String(correoVal).trim() !== '' && String(correoVal).trim() !== '-')
+            ? String(correoVal).trim()
+            : 'No especificado';
 
-    const alerta = document.getElementById('modalAlert');
-    if (alerta) {
-        alerta.classList.add('d-none');
-        alerta.textContent = '';
-    }
+        const correoEl = document.getElementById('modalTicketCorreo');
+        if (correoEl) {
+            correoEl.textContent = correoUsuario;
+        }
 
-    if (modalInstance) {
-        modalInstance.show();
+        // Sede y Piso: uso estricto de Optional Chaining y fallback seguro "No especificado"
+        const sedeVal = ticket?.sede;
+        const sedeTexto = (sedeVal !== null && sedeVal !== undefined && String(sedeVal).trim() !== '' && String(sedeVal).trim() !== '-')
+            ? String(sedeVal).trim()
+            : 'No especificado';
+        const sedeEl = document.getElementById('modalTicketSede');
+        if (sedeEl) {
+            sedeEl.textContent = sedeTexto;
+        }
+
+        const pisoVal = ticket?.piso;
+        const pisoTexto = (pisoVal !== null && pisoVal !== undefined && String(pisoVal).trim() !== '' && String(pisoVal).trim() !== '-')
+            ? String(pisoVal).trim()
+            : 'No especificado';
+        const pisoEl = document.getElementById('modalTicketPiso');
+        if (pisoEl) {
+            pisoEl.textContent = pisoTexto;
+        }
+
+        // 3. Descripción Completa (Sin truncar) con valor por defecto seguro
+        const descVal = ticket?.descripcion;
+        const descTexto = (descVal !== null && descVal !== undefined && String(descVal).trim() !== '' && String(descVal).trim() !== '-')
+            ? String(descVal).trim()
+            : 'No especificado';
+        const descEl = document.getElementById('modalTicketDescripcion');
+        if (descEl) {
+            descEl.textContent = descTexto;
+        }
+
+        // 4. Palabras Clave generadas por IA (si nulo o vacío: "Sin palabras clave detectadas")
+        const tagsContainer = document.getElementById('modalTicketTags');
+        if (tagsContainer) {
+            const rawTags = ticket?.palabras_clave ?? ticket?.tags ?? null;
+            let tagsList = [];
+            if (Array.isArray(rawTags)) {
+                tagsList = rawTags.map(p => String(p ?? '').trim()).filter(Boolean);
+            } else if (typeof rawTags === 'string' && rawTags.trim()) {
+                tagsList = rawTags.split(',').map(p => p.trim()).filter(Boolean);
+            }
+
+            if (tagsList.length > 0) {
+                tagsContainer.innerHTML = tagsList.map(tag => {
+                    const safeTag = String(tag)
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;');
+                    return `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1"><i class="bi bi-tag-fill me-1"></i>${safeTag}</span>`;
+                }).join(' ');
+            } else {
+                tagsContainer.innerHTML = '<span class="text-muted small fst-italic">Sin palabras clave detectadas</span>';
+            }
+        }
+
+        // 5. Enlaces de Evidencia adjunta con validación de URL y target="_blank"
+        const evidContainer = document.getElementById('modalTicketEvidenciaContainer');
+        const evidLink = document.getElementById('modalTicketEvidenciaLink');
+        if (evidContainer && evidLink) {
+            const rawEvidencia = ticket?.evidencia_url;
+            if (rawEvidencia && typeof rawEvidencia === 'string' && rawEvidencia.trim() !== '' && rawEvidencia.trim() !== '-' && rawEvidencia.trim() !== 'null') {
+                const urlLimpia = rawEvidencia.trim();
+                const href = (urlLimpia.startsWith('http://') || urlLimpia.startsWith('https://'))
+                    ? urlLimpia
+                    : `${API_URL}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
+                evidLink.href = href;
+                evidLink.target = '_blank';
+                evidLink.setAttribute('rel', 'noopener noreferrer');
+                evidContainer.classList.remove('d-none');
+            } else {
+                evidLink.href = '#';
+                evidLink.removeAttribute('target');
+                evidContainer.classList.add('d-none');
+            }
+        }
+
+        // 6. Campos de Edición
+        const estadoEl = document.getElementById('modalEstado');
+        if (estadoEl) {
+            estadoEl.value = ticket?.estado || estadoActual || 'Abierto';
+        }
+
+        const comentarioEl = document.getElementById('modalComentario');
+        if (comentarioEl) {
+            comentarioEl.value = ticket?.comentario_tecnico || comentarioActual || '';
+        }
+
+        const alerta = document.getElementById('modalAlert');
+        if (alerta) {
+            alerta.classList.add('d-none');
+            alerta.textContent = '';
+        }
+
+        // 7. Mostrar el modal (resiliente si no fue instanciado aún)
+        if (!modalInstance) {
+            const modalEl = document.getElementById('gestionarModal');
+            if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                modalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            }
+        }
+        if (modalInstance) {
+            modalInstance.show();
+        }
+    } catch (err) {
+        console.error('Error al popular modalGestion:', err);
     }
 }
 

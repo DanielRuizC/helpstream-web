@@ -37,6 +37,11 @@ def formatear_ticket_response(db: Session, ticket: models.Ticket, usuario: Optio
     creador_info = estructurar_info_creador(db, ticket, usuario=usuario)
     ticket.creador = creador_info
     ticket.usuario = creador_info
+    ticket.nombre_usuario = creador_info.nombre
+    ticket.solicitante = creador_info.nombre
+    ticket.correo = creador_info.correo
+    ticket.telefono = creador_info.telefono
+    ticket.anexo = creador_info.anexo
     if ticket.fecha_creacion:
         ticket.fecha_creacion = convertir_a_lima(ticket.fecha_creacion)
     return ticket
@@ -204,6 +209,16 @@ def read_tickets(skip: int = 0, limit: int = 100, db: Session = Depends(get_db))
     for t, u in results:
         tickets.append(formatear_ticket_response(db, t, usuario=u))
     return tickets
+
+@router.get("/{ticket_id}", response_model=schemas.TicketResponse)
+def read_ticket_by_id(ticket_id: int, db: Session = Depends(get_db)):
+    db_ticket = crud.get_ticket(db, ticket_id=ticket_id)
+    if not db_ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    usuario = None
+    if db_ticket.usuario_id:
+        usuario = db.query(models.Usuario).filter(models.Usuario.id == db_ticket.usuario_id).first()
+    return formatear_ticket_response(db, db_ticket, usuario=usuario)
 
 @router.patch("/{ticket_id}/estado", response_model=schemas.TicketResponse)
 def update_ticket_state(ticket_id: int, ticket_update: schemas.TicketUpdateEstado, db: Session = Depends(get_db)):

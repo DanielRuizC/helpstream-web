@@ -137,6 +137,11 @@ class TicketResponse(TicketBase):
     palabras_clave: List[str] = []
     creador: Optional[UsuarioCreador] = None
     usuario: Optional[UsuarioCreador] = None
+    nombre_usuario: Optional[str] = None
+    solicitante: Optional[str] = None
+    correo: Optional[str] = None
+    telefono: Optional[str] = None
+    anexo: Optional[str] = None
 
     class Config:
         from_attributes = True
