@@ -92,14 +92,23 @@ class UsuarioCreador(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
-    rol_id: Optional[int] = None
-    rol: Optional[str] = None
-    rol_nombre: Optional[str] = None
-    user_id: Optional[int] = None
+    nombre_usuario: Optional[str] = None
     nombre: Optional[str] = None
     nombre_completo: Optional[str] = None
     nombres: Optional[str] = None
     apellidos: Optional[str] = None
+    user_id: Optional[int] = None
+    id: Optional[int] = None
+    usuario_id: Optional[int] = None
+    rol_id: Optional[int] = None
+    rol: Optional[str] = None
+    rol_nombre: Optional[str] = None
+    correo: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+LoginResponse = Token
 
 class TokenData(BaseModel):
     user_id: Optional[int] = None

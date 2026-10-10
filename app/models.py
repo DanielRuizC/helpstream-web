@@ -37,6 +37,23 @@ class Usuario(Base):
     # Relación bidireccional con Rol
     rol = relationship("Rol", back_populates="usuarios")
 
+    @property
+    def nombre(self) -> str:
+        partes = [p.strip() for p in [self.nombres, self.apellidos] if p and p.strip()]
+        if partes:
+            return " ".join(partes)
+        if self.correo:
+            return self.correo.split("@")[0].capitalize()
+        return "Usuario"
+
+    @property
+    def nombre_usuario(self) -> str:
+        return self.nombre
+
+    @property
+    def nombre_completo(self) -> str:
+        return self.nombre
+
 
 class Ticket(Base):
     __tablename__ = "tickets"

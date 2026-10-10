@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
@@ -20,7 +20,7 @@ if not firebase_admin._apps:
     except Exception as e:
         print(f"[Firebase Admin Error] Error al inicializar Firebase Admin: {e}")
 
-from . import models
+from . import models, schemas
 from .database import engine
 from .routers import tickets, videos, auth, reportes, analytics
 
@@ -70,6 +70,15 @@ app.include_router(auth.usuarios_router)
 app.include_router(reportes.router)
 app.include_router(reportes.dashboard_router)
 app.include_router(analytics.router)
+
+
+@app.post("/login", response_model=schemas.Token, tags=["Autenticación"], include_in_schema=False)
+def login_root_alias(
+    credenciales: auth.OAuth2PasswordRequestForm = Depends(),
+    db: auth.Session = Depends(auth.get_db)
+):
+    """Alias raíz /login que redirige internamente a la lógica de autenticación."""
+    return auth.login_local(credenciales=credenciales, db=db)
 
 
 @app.on_event("startup")

@@ -243,12 +243,79 @@ def eliminar_usuario(
     return {"mensaje": "Usuario eliminado exitosamente"}
 
 
-@router.post("/login/local", response_model=schemas.Token)
-def login_local(credenciales: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def _construir_respuesta_login(usuario: models.Usuario) -> dict:
+    """
+    Construye el payload del JWT y el diccionario de respuesta para el inicio de sesión,
+    garantizando la extracción completa del usuario (id, rol, nombre y nombre_usuario).
+    """
+    rol_nombre_raw = usuario.rol.nombre if usuario.rol and usuario.rol.nombre else ""
+    if usuario.rol_id == 3 or rol_nombre_raw.lower() in ["jefe_ti", "jefe de ti", "jefe"]:
+        rol_display = "Jefe de TI"
+        rol_code = "jefe_ti"
+    elif usuario.rol_id == 2 or rol_nombre_raw.lower() in ["analista_ti", "analista"]:
+        rol_display = "Analista TI"
+        rol_code = "analista_ti"
+    else:
+        rol_display = "Usuario Planta"
+        rol_code = "usuario_planta"
 
+    # Calcular nombre completo para el usuario autenticado
+    partes_nombre = []
+    if usuario.nombres and usuario.nombres.strip():
+        partes_nombre.append(usuario.nombres.strip())
+    if usuario.apellidos and usuario.apellidos.strip():
+        partes_nombre.append(usuario.apellidos.strip())
+    nombre_completo = " ".join(partes_nombre).strip()
+    if not nombre_completo:
+        nombre_completo = (
+            usuario.nombres.strip()
+            if usuario.nombres and usuario.nombres.strip()
+            else (usuario.correo.split("@")[0].capitalize() if usuario.correo else "Usuario")
+        )
+
+    nombre_usuario = nombre_completo
+
+    payload = {
+        "sub": str(usuario.id),
+        "user_id": usuario.id,
+        "id": usuario.id,
+        "rol_id": usuario.rol_id,
+        "rol": rol_display,
+        "rol_code": rol_code,
+        "correo": usuario.correo,
+        "nombre": nombre_completo,
+        "nombre_usuario": nombre_usuario,
+        "nombre_completo": nombre_completo,
+        "nombres": usuario.nombres or "",
+        "apellidos": usuario.apellidos or ""
+    }
+    access_token = create_access_token(data=payload)
+
+    # 5. Retornar formato JSON con el token generado, atributos de rol y datos completos de usuario
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "rol_id": usuario.rol_id,
+        "rol": rol_display,
+        "rol_nombre": rol_display,
+        "user_id": usuario.id,
+        "id": usuario.id,
+        "usuario_id": usuario.id,
+        "nombre": nombre_completo,
+        "nombre_usuario": nombre_usuario,
+        "nombre_completo": nombre_completo,
+        "nombres": usuario.nombres or "",
+        "apellidos": usuario.apellidos or "",
+        "correo": usuario.correo
+    }
+
+
+@router.post("/login/local", response_model=schemas.Token)
+@router.post("/login", response_model=schemas.Token)
+def login_local(credenciales: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """
     Autenticación local mediante correo y contraseña.
-    Valida las credenciales contra la base de datos y retorna un token de acceso JWT con user_id y rol_id.
+    Valida las credenciales contra la base de datos y retorna un token de acceso JWT con datos completos del usuario.
     """
     # 1. Buscar usuario por correo electrónico (recibido en el campo username del formulario)
     usuario = db.query(models.Usuario).filter(models.Usuario.correo == credenciales.username).first()
@@ -268,55 +335,31 @@ def login_local(credenciales: OAuth2PasswordRequestForm = Depends(), db: Session
             detail="El usuario se encuentra inactivo en el sistema"
         )
 
-    # 4. Inyectar user_id y rol_id en el payload del token JWT
-    rol_nombre_raw = usuario.rol.nombre if usuario.rol and usuario.rol.nombre else ""
-    if usuario.rol_id == 3 or rol_nombre_raw.lower() in ["jefe_ti", "jefe de ti", "jefe"]:
-        rol_display = "Jefe de TI"
-        rol_code = "jefe_ti"
-    elif usuario.rol_id == 2 or rol_nombre_raw.lower() in ["analista_ti", "analista"]:
-        rol_display = "Analista TI"
-        rol_code = "analista_ti"
-    else:
-        rol_display = "Usuario Planta"
-        rol_code = "usuario_planta"
+    return _construir_respuesta_login(usuario)
 
-    # Calcular nombre completo para el usuario autenticado
-    partes_nombre = []
-    if usuario.nombres:
-        partes_nombre.append(usuario.nombres.strip())
-    if usuario.apellidos:
-        partes_nombre.append(usuario.apellidos.strip())
-    nombre_completo = " ".join(partes_nombre).strip()
-    if not nombre_completo:
-        nombre_completo = usuario.correo.split("@")[0].capitalize() if usuario.correo else "Personal TI"
 
-    payload = {
-        "sub": str(usuario.id),
-        "user_id": usuario.id,
-        "rol_id": usuario.rol_id,
-        "rol": rol_display,
-        "rol_code": rol_code,
-        "correo": usuario.correo,
-        "nombre": nombre_completo,
-        "nombre_completo": nombre_completo,
-        "nombres": usuario.nombres or "",
-        "apellidos": usuario.apellidos or ""
-    }
-    access_token = create_access_token(data=payload)
+@router.post("/login/json", response_model=schemas.Token)
+def login_json(credenciales: schemas.UsuarioLogin, db: Session = Depends(get_db)):
+    """
+    Autenticación mediante cuerpo JSON (correo y contraseña).
+    Permite compatibilidad con clientes REST o móviles que envían JSON.
+    """
+    usuario = db.query(models.Usuario).filter(models.Usuario.correo == credenciales.correo).first()
 
-    # 5. Retornar formato JSON con el token generado y atributos de rol
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "rol_id": usuario.rol_id,
-        "rol": rol_display,
-        "rol_nombre": rol_display,
-        "user_id": usuario.id,
-        "nombre": nombre_completo,
-        "nombre_completo": nombre_completo,
-        "nombres": usuario.nombres or "",
-        "apellidos": usuario.apellidos or ""
-    }
+    if not usuario or not verify_password(credenciales.password, usuario.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Correo o contraseña incorrectos",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    if not usuario.activo:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El usuario se encuentra inactivo en el sistema"
+        )
+
+    return _construir_respuesta_login(usuario)
 
 
 
