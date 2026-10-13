@@ -381,3 +381,41 @@ body.sidebar-open .sidebar {
     padding: 5px 10px;
     border-radius: 6px;
 }
+
+/* ==========================================
+   Botón de Refresco de Tickets y Animación Spin
+   ========================================== */
+#btnRefreshTickets {
+    transition: all 0.25s ease;
+    border-radius: 8px;
+}
+
+#btnRefreshTickets:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 51, 102, 0.15);
+}
+
+#btnRefreshTickets:active {
+    transform: translateY(0);
+}
+
+#btnRefreshTickets:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+@keyframes spin-refresh {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.spin-icon, .fa-spin {
+    display: inline-block;
+    animation: spin-refresh 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+

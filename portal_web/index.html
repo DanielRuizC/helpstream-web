@@ -128,9 +128,13 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Tarjeta 3: Botón Nuevo Ticket Rápido Compacto -->
-                    <div class="col-md-4 d-flex align-items-center">
-                        <button class="btn btn-primary w-100 shadow-sm py-3 fw-bold" data-bs-toggle="modal" data-bs-target="#modalNuevoTicket">
+                    <!-- Tarjeta 3: Acciones (Actualizar y Nuevo Ticket Rápido) -->
+                    <div class="col-md-4 d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-outline-primary shadow-sm py-3 px-3 fw-bold d-inline-flex align-items-center justify-content-center text-nowrap" id="btnRefreshTickets" title="Actualizar tickets" aria-label="Actualizar tickets">
+                            <i class="bi bi-arrow-clockwise fs-5" id="iconRefreshTickets"></i>
+                            <span class="d-none d-xl-inline ms-2">Actualizar</span>
+                        </button>
+                        <button class="btn btn-primary flex-grow-1 shadow-sm py-3 fw-bold text-nowrap" data-bs-toggle="modal" data-bs-target="#modalNuevoTicket">
                             <i class="bi bi-plus-circle-fill me-2"></i> Nuevo Ticket Rápido
                         </button>
                     </div>

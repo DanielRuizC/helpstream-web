@@ -806,6 +806,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const ticketsTable = document.getElementById('ticketsTable');
     if (ticketsTable) {
         cargarTickets();
+        configurarBotonRefresco();
+        iniciarPollingTickets(30000);
     }
 
     // Inicializar modal de nuevo ticket si está presente
@@ -908,8 +910,8 @@ function switchView(viewName) {
     if (viewName === 'dashboard') {
         document.getElementById('view-dashboard').style.display = 'block';
         document.getElementById('nav-dashboard').classList.add('active');
-        // Opcional: Recargar tickets al volver al dashboard
-        // cargarTickets(); 
+        // Recargar tickets al volver al dashboard de forma silenciosa
+        cargarTickets(true); 
     } else if (viewName === 'knowledge-base') {
         document.getElementById('view-knowledge-base').style.display = 'block';
         document.getElementById('nav-kb').classList.add('active');
@@ -921,8 +923,62 @@ function switchView(viewName) {
     }
 }
 
-// Fetch Tickets
-async function cargarTickets() {
+// ==========================================
+// Control de Refresco y Polling de Tickets (UX)
+// ==========================================
+let ticketsPollingInterval = null;
+
+/**
+ * Asigna el EventListener al botón de refresco en la UI con feedback visual (spin de 1s).
+ */
+function configurarBotonRefresco() {
+    const btnRefresh = document.getElementById('btnRefreshTickets');
+    if (!btnRefresh) return;
+
+    btnRefresh.addEventListener('click', async () => {
+        const icon = document.getElementById('iconRefreshTickets') || btnRefresh.querySelector('i');
+        if (icon) {
+            icon.classList.add('spin-icon');
+        }
+        btnRefresh.disabled = true;
+
+        const startTime = Date.now();
+        try {
+            await cargarTickets(false);
+        } catch (err) {
+            console.error('Error al actualizar los tickets manualmente:', err);
+        } finally {
+            // Feedback visual: asegurar que el ícono gire al menos 1 segundo
+            const elapsed = Date.now() - startTime;
+            const remaining = Math.max(0, 1000 - elapsed);
+            setTimeout(() => {
+                if (icon) {
+                    icon.classList.remove('spin-icon');
+                }
+                btnRefresh.disabled = false;
+            }, remaining);
+        }
+    });
+}
+
+/**
+ * Inicia el polling silencioso periódico de la tabla de tickets y contadores KPI.
+ * @param {number} intervalMs - Milisegundos entre cada consulta (ej. 30000 o 60000)
+ */
+function iniciarPollingTickets(intervalMs = 30000) {
+    if (ticketsPollingInterval) {
+        clearInterval(ticketsPollingInterval);
+    }
+    ticketsPollingInterval = setInterval(() => {
+        // Ejecución silenciosa: no bloquea ni muestra alertas intrusivas si falla temporalmente la red
+        if (document.getElementById('ticketsTable')) {
+            cargarTickets(true);
+        }
+    }, intervalMs);
+}
+
+// Fetch Tickets: encapsula la actualización de la tabla y contadores superiores
+async function cargarTickets(silencioso = false) {
     try {
         const response = await fetch(`${API_URL}/tickets/?skip=0&limit=100`);
         if (!response.ok) throw new Error("Error al cargar los tickets");
@@ -930,16 +986,22 @@ async function cargarTickets() {
         allTickets = await response.json();
         window.allTickets = allTickets; // Asegurar referencia global accesible
         
-        // Inicializar vistas
+        // Inicializar vistas: contadores superiores y tabla
         calcularMetricas(allTickets);
-        aplicarFiltros(); // Esto llamará a renderTickets() con los filtros actuales (por defecto: Todos)
+        aplicarFiltros(); // Esto llamará a renderTickets() con los filtros actuales
         
     } catch (error) {
-        console.error(error);
-        alert("Ocurrió un error al cargar los datos del servidor.");
-        document.getElementById('ticketsBody').innerHTML = '<tr><td colspan="12" class="text-center text-danger">Error al cargar datos</td></tr>';
+        console.error("Error al cargar los tickets:", error);
+        if (!silencioso) {
+            alert("Ocurrió un error al cargar los datos del servidor.");
+            const tbody = document.getElementById('ticketsBody');
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="12" class="text-center text-danger">Error al cargar datos</td></tr>';
+            }
+        }
     }
 }
+window.cargarTickets = cargarTickets;
 
 // Calcular KPIs
 function calcularMetricas(tickets) {
