@@ -22,7 +22,7 @@ if not firebase_admin._apps:
 
 from . import models, schemas
 from .database import engine
-from .routers import tickets, videos, auth, reportes, analytics
+from .routers import tickets, videos, auth, reportes, analytics, telegram
 
 
 # Create database tables
@@ -70,6 +70,7 @@ app.include_router(auth.usuarios_router)
 app.include_router(reportes.router)
 app.include_router(reportes.dashboard_router)
 app.include_router(analytics.router)
+app.include_router(telegram.router)
 
 
 @app.post("/login", response_model=schemas.Token, tags=["Autenticación"], include_in_schema=False)

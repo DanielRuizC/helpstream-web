@@ -14,3 +14,4 @@ pytz
 google-genai
 groq
 supabase
+httpx
