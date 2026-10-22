@@ -11,7 +11,7 @@
 CREATE TABLE IF NOT EXISTS public.telegram_sesiones (
     chat_id BIGINT PRIMARY KEY,
     correo_usuario TEXT NULL,
-    paso_actual TEXT NOT NULL DEFAULT 'esperando_correo',
+    paso_actual TEXT NOT NULL DEFAULT 'menu_principal',
     datos_temporales JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
@@ -21,8 +21,8 @@ CREATE TABLE IF NOT EXISTS public.telegram_sesiones (
 COMMENT ON TABLE public.telegram_sesiones IS 'Almacena el estado conversacional temporal de usuarios en Telegram para HelpStream.';
 COMMENT ON COLUMN public.telegram_sesiones.chat_id IS 'ID único del chat/usuario en Telegram (clave primaria).';
 COMMENT ON COLUMN public.telegram_sesiones.correo_usuario IS 'Correo corporativo validado del solicitante.';
-COMMENT ON COLUMN public.telegram_sesiones.paso_actual IS 'Paso actual en la máquina de estados: esperando_correo, esperando_descripcion, esperando_sede.';
-COMMENT ON COLUMN public.telegram_sesiones.datos_temporales IS 'Datos temporales en formato JSONB (ej. descripción del ticket, incidencias previas).';
+COMMENT ON COLUMN public.telegram_sesiones.paso_actual IS 'Fase actual: menu_principal, esperando_correo_registro, esperando_descripcion, esperando_sede, esperando_piso, esperando_correo_estado.';
+COMMENT ON COLUMN public.telegram_sesiones.datos_temporales IS 'Datos temporales en formato JSONB (ej. descripción del ticket, sede, piso).';
 
 -- 3. Función y Trigger para actualización automática de updated_at
 CREATE OR REPLACE FUNCTION public.actualizar_updated_at_telegram_sesiones()

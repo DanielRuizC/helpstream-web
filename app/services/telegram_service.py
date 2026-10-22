@@ -1,7 +1,7 @@
 import os
 import re
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 import httpx
 from ..utils.supabase_client import get_supabase_client
@@ -17,7 +17,16 @@ TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
 
 # Sedes corporativas válidas requeridas
-SEDES_DISPONIBLES = ["San Isidro", "Callao", "Planta Chancay"]
+SEDES_DISPONIBLES = ["San Isidro", "Chancay", "Ilo", "Pisco", "Coishco"]
+
+# Pisos / Áreas específicos para la sede San Isidro
+PISOS_SAN_ISIDRO = [
+    "3er piso - Gerencia General",
+    "3er piso - Gerencia Flota",
+    "3er piso - Gerencia Operaciones",
+    "4to piso - Gerencia de Administración y Finanzas",
+    "5to piso - Gerencia de Recursos Humanos"
+]
 
 
 # ============================================================================
@@ -91,25 +100,62 @@ async def answer_callback_query(
         return False
 
 
-def build_inline_keyboard_sedes() -> Dict[str, Any]:
+# ============================================================================
+# CONSTRUCTORES DE TECLADOS INTERACTIVOS (INLINE KEYBOARDS)
+# ============================================================================
+
+def build_inline_keyboard_menu_principal() -> Dict[str, Any]:
     """
-    Construye el InlineKeyboardMarkup interactivo con los botones de sedes requeridos.
+    Construye el menú principal con las 2 opciones de entrada.
     """
     return {
         "inline_keyboard": [
             [
-                {"text": "🏢 San Isidro", "callback_data": "sede:San Isidro"},
-                {"text": "⚓ Callao", "callback_data": "sede:Callao"}
+                {"text": "📝 Registrar Ticket", "callback_data": "menu:registrar"}
             ],
             [
-                {"text": "🏭 Planta Chancay", "callback_data": "sede:Planta Chancay"}
+                {"text": "🔍 Ver estado de tickets", "callback_data": "menu:estado"}
             ]
         ]
     }
 
 
+def build_inline_keyboard_sedes() -> Dict[str, Any]:
+    """
+    Construye el teclado con las sedes exactas:
+    San Isidro, Chancay, Ilo, Pisco, Coishco.
+    """
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "🏢 San Isidro", "callback_data": "sede:San Isidro"},
+                {"text": "🏭 Chancay", "callback_data": "sede:Chancay"}
+            ],
+            [
+                {"text": "⚓ Ilo", "callback_data": "sede:Ilo"},
+                {"text": "📍 Pisco", "callback_data": "sede:Pisco"}
+            ],
+            [
+                {"text": "🐟 Coishco", "callback_data": "sede:Coishco"}
+            ]
+        ]
+    }
+
+
+def build_inline_keyboard_pisos_san_isidro() -> Dict[str, Any]:
+    """
+    Construye el teclado condicional de pisos/áreas para la sede San Isidro.
+    """
+    return {
+        "inline_keyboard": [
+            [{"text": piso, "callback_data": f"piso:{piso}"}]
+            for piso in PISOS_SAN_ISIDRO
+        ]
+    }
+
+
 def es_correo_valido(correo: str) -> bool:
-    """Valida sintaxis de correo electrónico."""
+    """Valida sintaxis de correo electrónico corporativo."""
     if not correo or not isinstance(correo, str):
         return False
     return bool(EMAIL_REGEX.match(correo.strip()))
@@ -135,7 +181,7 @@ def obtener_sesion(chat_id: int) -> Optional[Dict[str, Any]]:
 def upsert_sesion(
     chat_id: int,
     correo_usuario: Optional[str] = None,
-    paso_actual: str = "esperando_correo",
+    paso_actual: str = "menu_principal",
     datos_temporales: Optional[Dict[str, Any]] = None
 ) -> bool:
     """Inserta o actualiza el registro de sesión en telegram_sesiones."""
@@ -176,7 +222,12 @@ def eliminar_sesion(chat_id: int) -> bool:
         return False
 
 
-def insertar_ticket(correo: str, descripcion: str, sede: str) -> Optional[Dict[str, Any]]:
+def insertar_ticket(
+    correo: str,
+    descripcion: str,
+    sede: str,
+    piso: str = "No especificado"
+) -> Optional[Dict[str, Any]]:
     """
     Inserta el nuevo ticket en la tabla tickets de Supabase.
     Asocia el usuario_id si el correo coincide con un registro en la tabla usuarios.
@@ -198,6 +249,7 @@ def insertar_ticket(correo: str, descripcion: str, sede: str) -> Optional[Dict[s
             "correo_solicitante": correo.strip().lower(),
             "descripcion": descripcion.strip(),
             "sede": sede.strip(),
+            "piso": (piso or "No especificado").strip(),
             "estado": "Abierto",
             "criticidad": "Medio",
             "fecha_creacion": datetime.utcnow().isoformat(),
@@ -205,11 +257,31 @@ def insertar_ticket(correo: str, descripcion: str, sede: str) -> Optional[Dict[s
         }
 
         res = supabase.table("tickets").insert(ticket_payload).execute()
-        logger.info(f"[Supabase] Ticket insertado con éxito para {correo} en sede {sede}.")
+        logger.info(f"[Supabase] Ticket insertado con éxito para {correo} en sede {sede} ({piso}).")
         return res.data[0] if (res.data and len(res.data) > 0) else ticket_payload
     except Exception as e:
         logger.exception(f"[Supabase] Error al registrar ticket en tickets: {e}")
         return None
+
+
+def consultar_ultimos_tickets(correo: str, limite: int = 3) -> List[Dict[str, Any]]:
+    """
+    Consulta los últimos tickets de un usuario en Supabase filtrados por correo_solicitante.
+    """
+    try:
+        supabase = get_supabase_client()
+        res = (
+            supabase.table("tickets")
+            .select("id, estado, descripcion, sede, piso, fecha_creacion")
+            .eq("correo_solicitante", correo.strip().lower())
+            .order("id", desc=True)
+            .limit(limite)
+            .execute()
+        )
+        return res.data or []
+    except Exception as e:
+        logger.error(f"[Supabase] Error al consultar tickets para {correo}: {e}")
+        return []
 
 
 # ============================================================================
@@ -227,13 +299,35 @@ async def procesar_update_telegram(update: Dict[str, Any]) -> None:
         elif "callback_query" in update:
             await _procesar_callback_query(update["callback_query"])
         else:
-            logger.debug(f"[Telegram] Update no manejado (tipo ignorado): {list(update.keys())}")
+            logger.debug(f"[Telegram] Update ignorado: {list(update.keys())}")
     except Exception as e:
         logger.exception(f"[Telegram] Error inesperado procesando update {update.get('update_id')}: {e}")
 
 
+async def _ejecutar_paso_0_inicio(chat_id: int) -> None:
+    """
+    Requerimiento 1: Modifica el comportamiento de /start.
+    Saluda y envía un InlineKeyboardMarkup con dos opciones:
+    - Registrar Ticket (menu:registrar)
+    - Ver estado de tickets (menu:estado)
+    """
+    upsert_sesion(
+        chat_id=chat_id,
+        correo_usuario=None,
+        paso_actual="menu_principal",
+        datos_temporales={}
+    )
+
+    teclado = build_inline_keyboard_menu_principal()
+    saludo = (
+        "👋 *¡Hola! Bienvenido al canal de soporte de HelpStream.*\n\n"
+        "Soy tu asistente virtual de TI. Por favor, selecciona una de las siguientes opciones:"
+    )
+    await send_telegram_message(chat_id, saludo, reply_markup=teclado)
+
+
 async def _procesar_mensaje_texto(message: Dict[str, Any]) -> None:
-    """Procesa los mensajes de texto entrantes."""
+    """Procesa los mensajes de texto entrantes según la máquina de estados."""
     chat = message.get("chat") or {}
     chat_id = chat.get("id")
     texto = (message.get("text") or "").strip()
@@ -241,34 +335,38 @@ async def _procesar_mensaje_texto(message: Dict[str, Any]) -> None:
     if not chat_id:
         return
 
-    # Comando /start: Reinicia el flujo en cualquier momento (Paso 0)
+    # Comando /start: Siempre regresa al menú principal
     if texto.startswith("/start"):
         await _ejecutar_paso_0_inicio(chat_id)
         return
 
-    # Consultar sesión actual en Supabase
     sesion = obtener_sesion(chat_id)
 
-    # Si no hay sesión previa y no es /start, invitar a iniciar
+    # Si no hay sesión previa, mostrar menú principal
     if not sesion:
-        msg = (
-            "👋 ¡Hola! Para registrar una incidencia o requerimiento en **HelpStream**, "
-            "por favor escribe */start* para iniciar el asistente."
-        )
-        await send_telegram_message(chat_id, msg)
+        await _ejecutar_paso_0_inicio(chat_id)
         return
 
-    paso_actual = sesion.get("paso_actual", "esperando_correo")
+    paso_actual = sesion.get("paso_actual", "menu_principal")
 
     # ------------------------------------------------------------------------
-    # PASO 1: Validar correo corporativo (esperando_correo)
+    # ESTADO: menu_principal (El usuario escribió texto en vez de pulsar botón)
     # ------------------------------------------------------------------------
-    if paso_actual == "esperando_correo":
+    if paso_actual == "menu_principal":
+        teclado = build_inline_keyboard_menu_principal()
+        msg = "👇 Por favor, presiona uno de los botones para continuar:"
+        await send_telegram_message(chat_id, msg, reply_markup=teclado)
+        return
+
+    # ------------------------------------------------------------------------
+    # FLUJO REGISTRAR - PASO: esperando_correo_registro
+    # ------------------------------------------------------------------------
+    if paso_actual == "esperando_correo_registro":
         if not es_correo_valido(texto):
             msg_error = (
                 "⚠️ *Correo inválido*\n\n"
-                "El texto ingresado no tiene formato de correo electrónico.\n"
-                "Por favor, ingresa tu correo corporativo (ej. `nombre@empresa.com`):"
+                "El texto ingresado no tiene un formato válido de correo corporativo.\n"
+                "Por favor, asegúrate de ingresar tu correo (ej. `nombre@empresa.com`):"
             )
             await send_telegram_message(chat_id, msg_error)
             return
@@ -282,19 +380,19 @@ async def _procesar_mensaje_texto(message: Dict[str, Any]) -> None:
         msg_pregunta = (
             f"✅ Correo registrado: `{correo_limpio}`\n\n"
             "📝 *¿Cuál es tu problema?*\n"
-            "Por favor, describe con detalle el inconveniente técnico que presentas:"
+            "Por favor, describe detalladamente el inconveniente técnico o solicitud que presentas:"
         )
         await send_telegram_message(chat_id, msg_pregunta)
         return
 
     # ------------------------------------------------------------------------
-    # PASO 2: Guardar descripción y solicitar sede (esperando_descripcion)
+    # FLUJO REGISTRAR - PASO: esperando_descripcion
     # ------------------------------------------------------------------------
     elif paso_actual == "esperando_descripcion":
         if len(texto) < 5:
             msg_corta = (
                 "⚠️ La descripción es muy breve.\n"
-                "Por favor, describe con un poco más de detalle el problema:"
+                "Por favor, brinda más detalles sobre el problema:"
             )
             await send_telegram_message(chat_id, msg_corta)
             return
@@ -310,31 +408,93 @@ async def _procesar_mensaje_texto(message: Dict[str, Any]) -> None:
         teclado = build_inline_keyboard_sedes()
         msg_sede = (
             "📍 *Selección de Sede*\n\n"
-            "Por favor, pulsa el botón correspondiente a la sede donde ocurre la incidencia:"
+            "Por favor, selecciona la sede donde ocurre la incidencia:"
         )
         await send_telegram_message(chat_id, msg_sede, reply_markup=teclado)
         return
 
     # ------------------------------------------------------------------------
-    # PASO 3: Estado esperando_sede pero el usuario envió texto en vez de botón
+    # FLUJO REGISTRAR - PASO: esperando_sede (Texto en lugar de botón)
     # ------------------------------------------------------------------------
     elif paso_actual == "esperando_sede":
         teclado = build_inline_keyboard_sedes()
         msg_recordatorio = (
-            "⚠️ Por favor, utiliza uno de los botones inferiores para seleccionar tu sede "
-            "o escribe */start* para reiniciar el proceso:"
+            "⚠️ Por favor, utiliza los botones interactivos para elegir tu sede:\n"
+            "• San Isidro\n• Chancay\n• Ilo\n• Pisco\n• Coishco\n\n"
+            "O escribe */start* para reiniciar."
         )
         await send_telegram_message(chat_id, msg_recordatorio, reply_markup=teclado)
         return
 
+    # ------------------------------------------------------------------------
+    # FLUJO REGISTRAR - PASO: esperando_piso (Texto en lugar de botón)
+    # ------------------------------------------------------------------------
+    elif paso_actual == "esperando_piso":
+        teclado = build_inline_keyboard_pisos_san_isidro()
+        msg_recordatorio = (
+            "⚠️ Por favor, selecciona el piso/área de San Isidro usando los botones inferiores "
+            "o escribe */start* para reiniciar:"
+        )
+        await send_telegram_message(chat_id, msg_recordatorio, reply_markup=teclado)
+        return
+
+    # ------------------------------------------------------------------------
+    # FLUJO VER ESTADO - PASO: esperando_correo_estado
+    # ------------------------------------------------------------------------
+    elif paso_actual == "esperando_correo_estado":
+        if not es_correo_valido(texto):
+            msg_error = (
+                "⚠️ *Correo inválido*\n\n"
+                "Por favor, ingresa un correo corporativo válido para buscar tus tickets (ej. `nombre@empresa.com`):"
+            )
+            await send_telegram_message(chat_id, msg_error)
+            return
+
+        correo_limpio = texto.lower()
+        tickets = consultar_ultimos_tickets(correo_limpio, limite=3)
+
+        if not tickets:
+            msg_vacio = (
+                "ℹ️ *No tienes tickets registrados*\n\n"
+                f"No encontramos tickets asociados al correo `{correo_limpio}`.\n\n"
+                "Escribe */start* para volver al menú principal o registrar uno nuevo."
+            )
+            await send_telegram_message(chat_id, msg_vacio)
+        else:
+            # Formatear últimos 3 tickets con ID, Estado y primeros 30 caracteres
+            items_formateados = []
+            for t in tickets:
+                t_id = t.get("id")
+                estado = t.get("estado", "Abierto")
+                desc_raw = t.get("descripcion") or "Sin descripción"
+                desc_corta = desc_raw[:30].strip()
+                if len(desc_raw) > 30:
+                    desc_corta += "..."
+                items_formateados.append(f"• *Ticket #{t_id}* — [{estado}]\n  _{desc_corta}_")
+
+            texto_tickets = "\n\n".join(items_formateados)
+            msg_resultado = (
+                f"🔍 *Últimos tickets de:* `{correo_limpio}`\n\n"
+                f"{texto_tickets}\n\n"
+                "Escribe */start* para volver al menú principal."
+            )
+            await send_telegram_message(chat_id, msg_resultado)
+
+        # Limpiar la sesión al concluir la consulta
+        eliminar_sesion(chat_id)
+        return
+
     else:
-        # Estado desconocido -> reiniciar a paso 0
+        # Estado desconocido -> reiniciar a menú principal
         await _ejecutar_paso_0_inicio(chat_id)
 
 
 async def _procesar_callback_query(callback: Dict[str, Any]) -> None:
     """
-    Procesa las pulsaciones de botones InlineKeyboardMarkup (Paso 3: esperando_sede).
+    Procesa las pulsaciones de botones InlineKeyboardMarkup:
+    - Menú Principal: menu:registrar, menu:estado
+    - Selección de Sede: sede:<nombre>
+    - Selección de Piso: piso:<nombre>
     """
     callback_id = callback.get("id")
     if callback_id:
@@ -349,68 +509,149 @@ async def _procesar_callback_query(callback: Dict[str, Any]) -> None:
     if not chat_id:
         return
 
-    # Normalizar valor de la sede seleccionada (admite prefijo 'sede:' o texto directo)
-    sede_seleccionada = raw_data.replace("sede:", "").strip()
-
-    if sede_seleccionada not in SEDES_DISPONIBLES:
-        logger.warning(f"[Telegram] Callback recibido con sede no reconocida: {raw_data}")
-        return
-
-    sesion = obtener_sesion(chat_id)
-    if not sesion or sesion.get("paso_actual") != "esperando_sede":
-        msg_expirado = (
-            "⚠️ Esta solicitud ya fue completada o la sesión ha expirado.\n"
-            "Escribe */start* para crear un nuevo ticket."
+    # ========================================================================
+    # EVENTOS DE MENÚ PRINCIPAL
+    # ========================================================================
+    if raw_data == "menu:registrar":
+        upsert_sesion(
+            chat_id=chat_id,
+            correo_usuario=None,
+            paso_actual="esperando_correo_registro",
+            datos_temporales={}
         )
-        await send_telegram_message(chat_id, msg_expirado)
+        msg = (
+            "📝 *Registro de Ticket*\n\n"
+            "Por favor, ingresa tu *correo corporativo* (ej. `nombre@empresa.com`):"
+        )
+        await send_telegram_message(chat_id, msg)
         return
 
-    correo_usuario = sesion.get("correo_usuario") or "usuario@helpstream.com"
-    datos_temporales = sesion.get("datos_temporales") or {}
-    descripcion = datos_temporales.get("descripcion", "Sin descripción provista")
+    elif raw_data == "menu:estado":
+        upsert_sesion(
+            chat_id=chat_id,
+            correo_usuario=None,
+            paso_actual="esperando_correo_estado",
+            datos_temporales={}
+        )
+        msg = (
+            "🔍 *Consulta de Estado de Tickets*\n\n"
+            "Por favor, ingresa tu *correo corporativo* para consultar tus solicitudes (ej. `nombre@empresa.com`):"
+        )
+        await send_telegram_message(chat_id, msg)
+        return
 
-    # Insertar ticket en Supabase
-    ticket_creado = insertar_ticket(
-        correo=correo_usuario,
-        descripcion=descripcion,
-        sede=sede_seleccionada
-    )
+    # ========================================================================
+    # EVENTOS DE SELECCIÓN DE SEDE
+    # ========================================================================
+    elif raw_data.startswith("sede:"):
+        sede_seleccionada = raw_data.replace("sede:", "").strip()
 
-    ticket_id = (ticket_creado or {}).get("id", "Pendiente")
+        if sede_seleccionada not in SEDES_DISPONIBLES:
+            logger.warning(f"[Telegram] Sede no reconocida recibida: {sede_seleccionada}")
+            return
 
-    # Responder al usuario con la confirmación requerida
-    msg_exito = (
-        "🎉 *Ticket registrado con éxito*\n\n"
-        "📋 *Resumen de la Solicitud:*\n"
-        f"• *Ticket ID:* #{ticket_id}\n"
-        f"• *Solicitante:* `{correo_usuario}`\n"
-        f"• *Sede:* {sede_seleccionada}\n"
-        f"• *Descripción:* {descripcion}\n\n"
-        "👨‍💻 Un especialista de TI atenderá tu incidencia a la brevedad.\n\n"
-        "Si necesitas reportar otro problema, escribe */start*."
-    )
-    await send_telegram_message(chat_id, msg_exito)
+        sesion = obtener_sesion(chat_id)
+        if not sesion or sesion.get("paso_actual") != "esperando_sede":
+            msg_expirado = (
+                "⚠️ Esta solicitud ya fue completada o la sesión ha expirado.\n"
+                "Escribe */start* para ir al menú principal."
+            )
+            await send_telegram_message(chat_id, msg_expirado)
+            return
 
-    # Eliminar el registro de sesión para reiniciar el ciclo en Supabase
-    eliminar_sesion(chat_id)
-    logger.info(f"[Telegram] Sesión cerrada y eliminada exitosamente para chat_id {chat_id}.")
+        datos_temporales = sesion.get("datos_temporales") or {}
+        datos_temporales["sede"] = sede_seleccionada
+        correo_usuario = sesion.get("correo_usuario") or "usuario@helpstream.com"
+        descripcion = datos_temporales.get("descripcion", "Sin descripción provista")
 
+        # --------------------------------------------------------------------
+        # LÓGICA CONDICIONAL DE PISOS:
+        # SI es San Isidro -> Preguntar piso con teclado
+        # SI es distinta -> Insertar directamente con piso 'No especificado'
+        # --------------------------------------------------------------------
+        if sede_seleccionada == "San Isidro":
+            actualizar_sesion(chat_id, {
+                "datos_temporales": datos_temporales,
+                "paso_actual": "esperando_piso"
+            })
+            teclado_pisos = build_inline_keyboard_pisos_san_isidro()
+            msg_piso = (
+                "🏢 *Sede San Isidro seleccionada*\n\n"
+                "Por favor, selecciona el piso o gerencia correspondiente:"
+            )
+            await send_telegram_message(chat_id, msg_piso, reply_markup=teclado_pisos)
+            return
 
-async def _ejecutar_paso_0_inicio(chat_id: int) -> None:
-    """
-    Paso 0: Inicializa o reinicia la sesión en 'esperando_correo'
-    y envía el saludo de bienvenida pidiendo el correo corporativo.
-    """
-    upsert_sesion(
-        chat_id=chat_id,
-        correo_usuario=None,
-        paso_actual="esperando_correo",
-        datos_temporales={}
-    )
+        else:
+            # Sede distinta a San Isidro: Registrar ticket con piso 'No especificado'
+            ticket_creado = insertar_ticket(
+                correo=correo_usuario,
+                descripcion=descripcion,
+                sede=sede_seleccionada,
+                piso="No especificado"
+            )
+            ticket_id = (ticket_creado or {}).get("id", "Generado")
 
-    saludo = (
-        "👋 *¡Hola! Bienvenido al canal de soporte de HelpStream.*\n\n"
-        "Soy el asistente virtual para el registro ágil de tickets de TI.\n\n"
-        "Para iniciar, por favor escribe tu *correo corporativo* (ej. `nombre@empresa.com`):"
-    )
-    await send_telegram_message(chat_id, saludo)
+            msg_exito = (
+                "🎉 *Ticket registrado con éxito*\n\n"
+                "📋 *Resumen de la Solicitud:*\n"
+                f"• *Ticket ID:* #{ticket_id}\n"
+                f"• *Solicitante:* `{correo_usuario}`\n"
+                f"• *Sede:* {sede_seleccionada}\n"
+                f"• *Área/Piso:* No especificado\n"
+                f"• *Descripción:* {descripcion}\n\n"
+                "👨‍💻 Un especialista de TI atenderá tu incidencia a la brevedad.\n\n"
+                "Escribe */start* para volver al menú principal."
+            )
+            await send_telegram_message(chat_id, msg_exito)
+            eliminar_sesion(chat_id)
+            logger.info(f"[Telegram] Ticket creado para chat_id {chat_id} en sede {sede_seleccionada}. Sesión cerrada.")
+            return
+
+    # ========================================================================
+    # EVENTOS DE SELECCIÓN DE PISO (SAN ISIDRO)
+    # ========================================================================
+    elif raw_data.startswith("piso:"):
+        piso_seleccionado = raw_data.replace("piso:", "").strip()
+
+        sesion = obtener_sesion(chat_id)
+        if not sesion or sesion.get("paso_actual") != "esperando_piso":
+            msg_expirado = (
+                "⚠️ Esta solicitud ya fue completada o la sesión ha expirado.\n"
+                "Escribe */start* para ir al menú principal."
+            )
+            await send_telegram_message(chat_id, msg_expirado)
+            return
+
+        correo_usuario = sesion.get("correo_usuario") or "usuario@helpstream.com"
+        datos_temporales = sesion.get("datos_temporales") or {}
+        descripcion = datos_temporales.get("descripcion", "Sin descripción provista")
+        sede = datos_temporales.get("sede", "San Isidro")
+
+        # Insertar ticket con sede y piso seleccionados
+        ticket_creado = insertar_ticket(
+            correo=correo_usuario,
+            descripcion=descripcion,
+            sede=sede,
+            piso=piso_seleccionado
+        )
+        ticket_id = (ticket_creado or {}).get("id", "Generado")
+
+        msg_exito = (
+            "🎉 *Ticket registrado con éxito*\n\n"
+            "📋 *Resumen de la Solicitud:*\n"
+            f"• *Ticket ID:* #{ticket_id}\n"
+            f"• *Solicitante:* `{correo_usuario}`\n"
+            f"• *Sede:* {sede}\n"
+            f"• *Área/Piso:* {piso_seleccionado}\n"
+            f"• *Descripción:* {descripcion}\n\n"
+            "👨‍💻 Un especialista de TI atenderá tu incidencia a la brevedad.\n\n"
+            "Escribe */start* para volver al menú principal."
+        )
+        await send_telegram_message(chat_id, msg_exito)
+        eliminar_sesion(chat_id)
+        logger.info(f"[Telegram] Ticket creado para chat_id {chat_id} en San Isidro ({piso_seleccionado}). Sesión cerrada.")
+        return
+
+    else:
+        logger.debug(f"[Telegram] Callback data no reconocida: {raw_data}")
