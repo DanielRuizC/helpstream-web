@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 import httpx
 from ..utils.supabase_client import get_supabase_client
+from ..timezone import convertir_a_lima
 
 logger = logging.getLogger("helpstream.telegram")
 if not logger.handlers:
@@ -285,6 +286,120 @@ def consultar_ultimos_tickets(correo: str, limite: int = 3) -> List[Dict[str, An
 
 
 # ============================================================================
+# FORMATEO DE TICKETS PARA TELEGRAM (MARKDOWN ENRIQUECIDO)
+# ============================================================================
+
+def _sanear_markdown(texto: str) -> str:
+    """
+    Escapa caracteres especiales de Telegram Markdown v1 (_, *, `, [)
+    en texto dinámico para evitar fallos de parseo en la API.
+    """
+    if not texto:
+        return ""
+    for char in ["_", "*", "`", "["]:
+        texto = texto.replace(char, f"\\{char}")
+    return texto
+
+
+def _formatear_ubicacion_ticket(sede: Optional[str], piso: Optional[str]) -> str:
+    """
+    Formatea la ubicación combinando sede y piso/área.
+    Si el piso es nulo, vacío o 'No especificado', se muestra únicamente la sede.
+    Maneja nulos adecuadamente para evitar cadenas extrañas.
+    """
+    sede_limpia = (sede or "").strip()
+    piso_limpio = (piso or "").strip()
+
+    valores_nulos = {"no especificado", "none", "null", "n/a", "-", ""}
+    tiene_sede = bool(sede_limpia and sede_limpia.lower() not in valores_nulos)
+    tiene_piso = bool(piso_limpio and piso_limpio.lower() not in valores_nulos)
+
+    if tiene_sede and tiene_piso:
+        return f"{sede_limpia} | {piso_limpio}"
+    elif tiene_sede:
+        return sede_limpia
+    elif tiene_piso:
+        return piso_limpio
+    else:
+        return "No especificada"
+
+
+def _formatear_fecha_ticket(fecha_raw: Any) -> str:
+    """
+    Formatea la fecha de creación del ticket al formato DD/MM/YYYY en hora local (America/Lima).
+    """
+    if not fecha_raw:
+        return "No disponible"
+    try:
+        if isinstance(fecha_raw, str):
+            str_limpio = fecha_raw.strip()
+            # Si solo contiene fecha sin hora (YYYY-MM-DD)
+            if "T" not in str_limpio and " " not in str_limpio and len(str_limpio) == 10:
+                partes = str_limpio.split("-")
+                if len(partes) == 3 and len(partes[0]) == 4:
+                    return f"{partes[2]}/{partes[1]}/{partes[0]}"
+
+            fecha_iso = str_limpio.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(fecha_iso)
+        elif isinstance(fecha_raw, datetime):
+            dt = fecha_raw
+        else:
+            return "No disponible"
+
+        dt_lima = convertir_a_lima(dt)
+        fecha_obj = dt_lima if dt_lima else dt
+        return fecha_obj.strftime("%d/%m/%Y")
+    except Exception:
+        try:
+            partes = str(fecha_raw).split("T")[0].split(" ")[0].split("-")
+            if len(partes) == 3 and len(partes[0]) == 4:
+                return f"{partes[2]}/{partes[1]}/{partes[0]}"
+        except Exception:
+            pass
+        return "No disponible"
+
+
+def _formatear_detalle_ticket(descripcion: Optional[str], max_len: int = 100) -> str:
+    """
+    Limpia y trunca la descripción a un máximo de 100 caracteres.
+    """
+    if not descripcion or not descripcion.strip():
+        return "Sin descripción provista"
+
+    desc_limpia = " ".join(descripcion.strip().split())
+    if len(desc_limpia) > max_len:
+        return f"{desc_limpia[:max_len].strip()}..."
+    return desc_limpia
+
+
+def _formatear_bloque_ticket(ticket: Dict[str, Any]) -> str:
+    """
+    Construye el bloque de texto enriquecido en Markdown de Telegram para un ticket.
+    Estructura requerida:
+    🎫 Ticket #121 — [Resuelto]
+    📍 Ubicación: San Isidro | 3er piso - Gerencia General
+    📅 Fecha: DD/MM/YYYY
+    📝 Detalle: [Descripción truncada a un máximo de 100 caracteres...]
+    """
+    t_id = ticket.get("id", "S/N")
+    estado = (ticket.get("estado") or "Abierto").strip()
+    ubicacion = _formatear_ubicacion_ticket(ticket.get("sede"), ticket.get("piso"))
+    fecha = _formatear_fecha_ticket(ticket.get("fecha_creacion"))
+    detalle = _formatear_detalle_ticket(ticket.get("descripcion"), max_len=100)
+
+    estado_seguro = _sanear_markdown(estado)
+    ubicacion_segura = _sanear_markdown(ubicacion)
+    detalle_seguro = _sanear_markdown(detalle)
+
+    return (
+        f"🎫 *Ticket #{t_id}* — [{estado_seguro}]\n"
+        f"📍 *Ubicación:* {ubicacion_segura}\n"
+        f"📅 *Fecha:* {fecha}\n"
+        f"📝 *Detalle:* {detalle_seguro}"
+    )
+
+
+# ============================================================================
 # LÓGICA DE NEGOCIO Y ÁRBOL DE DECISIONES CONVERSACIONAL
 # ============================================================================
 
@@ -461,17 +576,8 @@ async def _procesar_mensaje_texto(message: Dict[str, Any]) -> None:
             )
             await send_telegram_message(chat_id, msg_vacio)
         else:
-            # Formatear últimos 3 tickets con ID, Estado y primeros 30 caracteres
-            items_formateados = []
-            for t in tickets:
-                t_id = t.get("id")
-                estado = t.get("estado", "Abierto")
-                desc_raw = t.get("descripcion") or "Sin descripción"
-                desc_corta = desc_raw[:30].strip()
-                if len(desc_raw) > 30:
-                    desc_corta += "..."
-                items_formateados.append(f"• *Ticket #{t_id}* — [{estado}]\n  _{desc_corta}_")
-
+            # Formatear últimos tickets con el bloque de texto enriquecido en Markdown de Telegram
+            items_formateados = [_formatear_bloque_ticket(t) for t in tickets]
             texto_tickets = "\n\n".join(items_formateados)
             msg_resultado = (
                 f"🔍 *Últimos tickets de:* `{correo_limpio}`\n\n"
