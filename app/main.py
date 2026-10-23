@@ -47,6 +47,13 @@ try:
 except Exception:
     pass
 
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE videos_tutoriales ADD COLUMN IF NOT EXISTS reproducciones INTEGER DEFAULT 0"))
+        conn.execute(text("ALTER TABLE videos_tutoriales ADD COLUMN IF NOT EXISTS casos_resueltos INTEGER DEFAULT 0"))
+except Exception:
+    pass
+
 app = FastAPI(title="HelpStream Backend")
 
 os.makedirs("static/videos", exist_ok=True)

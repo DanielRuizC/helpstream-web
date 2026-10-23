@@ -82,3 +82,5 @@ class VideoTutorial(Base):
     # Aquí guardamos los tags de la HU13, ej: "caldera, fuga, presion, agua"
     tags = Column(String, index=True) 
     fecha_subida = Column(DateTime, default=datetime.utcnow)
+    reproducciones = Column(Integer, default=0, nullable=False)
+    casos_resueltos = Column(Integer, default=0, nullable=False)

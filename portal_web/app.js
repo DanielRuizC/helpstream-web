@@ -821,6 +821,14 @@ document.addEventListener("DOMContentLoaded", () => {
         inicializarDashboardGerencial();
     }
 
+    // Inicializar Módulo de Microaprendizaje / Base de Conocimiento
+    if (document.getElementById('view-knowledge-base') || document.getElementById('tablaVideos')) {
+        inicializarModuloVideos();
+        if (window.location.hash === '#knowledge-base') {
+            switchView('knowledge-base');
+        }
+    }
+
     // Pre-llenar búsqueda si viene parámetro correo en la URL
     const urlParams = new URLSearchParams(window.location.search);
     const correoParam = urlParams.get('correo');
@@ -915,6 +923,7 @@ function switchView(viewName) {
     } else if (viewName === 'knowledge-base') {
         document.getElementById('view-knowledge-base').style.display = 'block';
         document.getElementById('nav-kb').classList.add('active');
+        cargarVideosTutoriales();
     }
 
     // En pantallas pequeñas, cerramos el menú tras seleccionar una opción
@@ -1609,42 +1618,329 @@ async function guardarGestion() {
     }
 }
 
-// Carga de Video Tutorial
-const formCargarVideoEl = document.getElementById('formCargarVideo');
-if (formCargarVideoEl) {
-    formCargarVideoEl.addEventListener('submit', async function (event) {
-        event.preventDefault(); 
+// ==========================================
+// Módulo de Gestión de Microaprendizaje (Base de Conocimiento)
+// ==========================================
+let allVideosTutoriales = [];
+let modalCargarVideoInstance = null;
+let modalVerVideoInstance = null;
 
-        const datosVideo = new FormData();
-        datosVideo.append('titulo', document.getElementById('inputTituloVideo').value.trim());
-        datosVideo.append('descripcion', document.getElementById('inputDescripcionVideo').value.trim());
-        datosVideo.append('tags', document.getElementById('inputTagsVideo').value.trim());
-        datosVideo.append('video_file', document.getElementById('inputUrlVideo').files[0]);
+function escaparHTML(texto) {
+    if (!texto) return '';
+    return String(texto)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
 
-        try {
-            const respuesta = await fetch(`${API_URL}/videos/`, {
-                method: 'POST',
-                body: datosVideo
-            });
+function inicializarModuloVideos() {
+    const modalCargarEl = document.getElementById('modalCargarVideo');
+    if (modalCargarEl && typeof bootstrap !== 'undefined') {
+        modalCargarVideoInstance = new bootstrap.Modal(modalCargarEl);
+    }
 
-            if (respuesta.ok) {
-                const videoGuardado = await respuesta.json();
-                alert(`¡Éxito! El video "${videoGuardado.titulo}" fue guardado correctamente en la Base de Conocimiento.`);
-                formCargarVideoEl.reset();
-                
-                // Volver al dashboard y limpiar vista (Opcional)
-                switchView('dashboard');
-            } else {
-                const errorData = await respuesta.json();
-                console.error('Error del servidor:', errorData);
-                alert('Hubo un error al intentar guardar el video. Revisa la consola para más detalles.');
+    const modalVerEl = document.getElementById('modalVerVideo');
+    if (modalVerEl && typeof bootstrap !== 'undefined') {
+        modalVerVideoInstance = new bootstrap.Modal(modalVerEl);
+        modalVerEl.addEventListener('hidden.bs.modal', () => {
+            cerrarModalVideo();
+        });
+    }
+
+    // Configurar listener para el formulario dentro del Modal
+    const formCargarVideoEl = document.getElementById('formCargarVideo');
+    if (formCargarVideoEl) {
+        formCargarVideoEl.addEventListener('submit', async function (event) {
+            event.preventDefault();
+
+            const btnSubmit = document.getElementById('btnSubmitVideo') || formCargarVideoEl.querySelector('button[type="submit"]');
+            const originalBtnHtml = btnSubmit ? btnSubmit.innerHTML : '';
+            if (btnSubmit) {
+                btnSubmit.disabled = true;
+                btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Publicando en Supabase...';
             }
-        } catch (error) {
-            console.error('Error de red:', error);
-            alert('No se pudo conectar con el servidor de HelpStream. Verifica que el backend esté ejecutándose.');
+
+            const datosVideo = new FormData();
+            datosVideo.append('titulo', document.getElementById('inputTituloVideo').value.trim());
+            datosVideo.append('descripcion', document.getElementById('inputDescripcionVideo').value.trim());
+            datosVideo.append('tags', document.getElementById('inputTagsVideo').value.trim());
+            datosVideo.append('video_file', document.getElementById('inputUrlVideo').files[0]);
+
+            try {
+                const respuesta = await fetch(`${API_URL}/videos/`, {
+                    method: 'POST',
+                    body: datosVideo
+                });
+
+                if (respuesta.ok) {
+                    const videoGuardado = await respuesta.json();
+                    formCargarVideoEl.reset();
+
+                    // Cerrar el modal de carga
+                    if (modalCargarVideoInstance) {
+                        modalCargarVideoInstance.hide();
+                    } else {
+                        const modalBackdrop = document.querySelector('.modal-backdrop');
+                        if (modalBackdrop) modalBackdrop.remove();
+                    }
+
+                    // Recargar inmediatamente la tabla de videos con las métricas
+                    await cargarVideosTutoriales();
+
+                    alert(`¡Éxito! El video "${videoGuardado.titulo}" fue publicado correctamente en la Base de Conocimiento.`);
+                } else {
+                    const errorData = await respuesta.json().catch(() => ({}));
+                    console.error('Error del servidor:', errorData);
+                    alert(`Hubo un error al intentar guardar el video: ${errorData.detail || 'Revisa la consola para más detalles.'}`);
+                }
+            } catch (error) {
+                console.error('Error de red:', error);
+                alert('No se pudo conectar con el servidor de HelpStream. Verifica que el backend esté ejecutándose.');
+            } finally {
+                if (btnSubmit) {
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerHTML = originalBtnHtml;
+                }
+            }
+        });
+    }
+
+    // Si la vista de microaprendizaje ya está visible, cargar datos
+    const viewKb = document.getElementById('view-knowledge-base');
+    if (viewKb && viewKb.style.display !== 'none') {
+        cargarVideosTutoriales();
+    }
+}
+
+async function cargarVideosTutoriales() {
+    const tbody = document.getElementById('videosTableBody');
+    const iconRefresh = document.getElementById('iconRefreshVideos');
+    if (iconRefresh) iconRefresh.classList.add('spin-icon');
+
+    try {
+        const respuesta = await fetch(`${API_URL}/videos/?skip=0&limit=100`);
+        if (!respuesta.ok) throw new Error('Error al obtener catálogo de videos');
+
+        allVideosTutoriales = await respuesta.json();
+        renderTablaVideos(allVideosTutoriales);
+    } catch (error) {
+        console.error('Error al cargar videos tutoriales:', error);
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center py-4 text-danger">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        No se pudieron cargar los videos tutoriales. Verifique que el backend esté ejecutándose.
+                    </td>
+                </tr>
+            `;
         }
+    } finally {
+        if (iconRefresh) {
+            setTimeout(() => iconRefresh.classList.remove('spin-icon'), 600);
+        }
+    }
+}
+window.cargarVideosTutoriales = cargarVideosTutoriales;
+
+function filtrarVideosTutoriales() {
+    const input = document.getElementById('filtroVideosInput');
+    const query = input ? input.value.toLowerCase().trim() : '';
+
+    if (!query) {
+        renderTablaVideos(allVideosTutoriales);
+        return;
+    }
+
+    const filtrados = allVideosTutoriales.filter(v => {
+        const titulo = (v.titulo || '').toLowerCase();
+        const descripcion = (v.descripcion || '').toLowerCase();
+        const tags = (v.tags || '').toLowerCase();
+        return titulo.includes(query) || descripcion.includes(query) || tags.includes(query);
+    });
+
+    renderTablaVideos(filtrados);
+}
+window.filtrarVideosTutoriales = filtrarVideosTutoriales;
+
+function renderTablaVideos(videos) {
+    const tbody = document.getElementById('videosTableBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    if (!videos || videos.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center py-5 text-muted">
+                    <i class="bi bi-camera-reels display-6 d-block mb-2 text-secondary opacity-50"></i>
+                    No se encontraron videos tutoriales en la Base de Conocimiento.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    videos.forEach(video => {
+        const tr = document.createElement('tr');
+
+        // Procesar tags a etiquetas / badges visuales
+        let tagsHtml = '<span class="text-muted small">-</span>';
+        if (video.tags) {
+            const tagList = video.tags.split(',').map(t => t.trim()).filter(Boolean);
+            if (tagList.length > 0) {
+                tagsHtml = tagList.map(tag => {
+                    const cleanTag = tag.startsWith('#') ? tag : `#${tag}`;
+                    return `<span class="badge bg-light text-primary border border-primary-subtle me-1 mb-1 fw-medium" style="font-size: 0.76rem;">${escaparHTML(cleanTag)}</span>`;
+                }).join(' ');
+            }
+        }
+
+        // Métrica: Reproducciones (entero con ícono de play / ojo)
+        const reproducciones = Number(video.reproducciones ?? 0);
+
+        // Métrica: Casos Resueltos (entero con ícono de check / éxito)
+        const casosResueltos = Number(video.casos_resueltos ?? 0);
+
+        // Fecha de subida formateada
+        let fechaSubida = '';
+        if (video.fecha_subida) {
+            try {
+                const d = new Date(video.fecha_subida);
+                if (!isNaN(d.getTime())) {
+                    fechaSubida = d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                }
+            } catch (e) {
+                fechaSubida = '';
+            }
+        }
+
+        tr.innerHTML = `
+            <td>
+                <div class="d-flex align-items-start gap-2">
+                    <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-2 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; min-width: 38px;">
+                        <i class="bi bi-play-circle-fill fs-5"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold text-dark text-truncate" style="max-width: 320px;" title="${escaparHTML(video.titulo)}">
+                            ${escaparHTML(video.titulo)}
+                        </div>
+                        <small class="text-muted text-truncate d-block" style="max-width: 320px;" title="${escaparHTML(video.descripcion || '')}">
+                            ${escaparHTML(video.descripcion || 'Sin descripción')}
+                        </small>
+                        ${fechaSubida ? `<small class="text-muted" style="font-size: 0.72rem;"><i class="bi bi-clock me-1"></i>${fechaSubida}</small>` : ''}
+                    </div>
+                </div>
+            </td>
+            <td>
+                <div class="d-flex flex-wrap" style="max-width: 260px;">
+                    ${tagsHtml}
+                </div>
+            </td>
+            <td class="text-center">
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 fs-6 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" title="${reproducciones} reproducciones registradas">
+                    <i class="bi bi-eye-fill me-1"></i> ${reproducciones}
+                </span>
+            </td>
+            <td class="text-center">
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 fs-6 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" title="${casosResueltos} usuarios solucionaron su problema con este tutorial">
+                    <i class="bi bi-check-circle-fill me-1"></i> ${casosResueltos}
+                </span>
+            </td>
+            <td class="text-center">
+                <div class="btn-group btn-group-sm" role="group">
+                    <button class="btn btn-outline-primary" onclick="verVideoTutorial(${video.id})" title="Ver y Reproducir Video">
+                        <i class="bi bi-play-fill fs-6"></i> Ver
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="eliminarVideoTutorial(${video.id}, '${escaparHTML(video.titulo).replace(/'/g, "\\'")}')" title="Eliminar Video Tutorial">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+
+        tbody.appendChild(tr);
     });
 }
+
+function verVideoTutorial(id) {
+    const video = allVideosTutoriales.find(v => v.id === id);
+    if (!video || !video.url_video) {
+        alert('No se pudo encontrar la URL multimedia del video tutorial.');
+        return;
+    }
+
+    const modalTitulo = document.getElementById('modalVerVideoTitulo');
+    const player = document.getElementById('playerVideoTutorial');
+    const btnDescargar = document.getElementById('btnDescargarVideo');
+
+    if (modalTitulo) modalTitulo.textContent = video.titulo;
+    if (player) {
+        player.src = video.url_video;
+        player.load();
+        player.play().catch(() => {});
+    }
+    if (btnDescargar) {
+        btnDescargar.href = video.url_video;
+    }
+
+    if (modalVerVideoInstance) {
+        modalVerVideoInstance.show();
+    } else {
+        window.open(video.url_video, '_blank');
+    }
+
+    // Registrar incremento de reproducción en backend
+    fetch(`${API_URL}/videos/${id}/reproducir`, { method: 'POST' })
+        .then(r => {
+            if (r.ok) return r.json();
+            return null;
+        })
+        .then(data => {
+            if (data && data.reproducciones !== undefined) {
+                video.reproducciones = data.reproducciones;
+                renderTablaVideos(allVideosTutoriales);
+            }
+        })
+        .catch(err => console.warn('Aviso: no se pudo actualizar métrica de reproducción:', err));
+}
+window.verVideoTutorial = verVideoTutorial;
+
+function cerrarModalVideo() {
+    const player = document.getElementById('playerVideoTutorial');
+    if (player) {
+        player.pause();
+        player.currentTime = 0;
+        player.src = '';
+    }
+}
+window.cerrarModalVideo = cerrarModalVideo;
+
+async function eliminarVideoTutorial(id, titulo) {
+    const confirmar = confirm(`¿Estás seguro de que deseas eliminar el video tutorial "${titulo}"?\nEsta acción lo removerá de la Base de Conocimiento.`);
+    if (!confirmar) return;
+
+    try {
+        const respuesta = await fetch(`${API_URL}/videos/${id}`, {
+            method: 'DELETE'
+        });
+
+        if (respuesta.ok) {
+            alert(`El video tutorial "${titulo}" fue eliminado exitosamente.`);
+            await cargarVideosTutoriales();
+        } else {
+            const err = await respuesta.json().catch(() => ({}));
+            alert(`No se pudo eliminar el video: ${err.detail || 'Error en el servidor'}`);
+        }
+    } catch (e) {
+        console.error('Error al eliminar video:', e);
+        alert('Ocurrió un error de red al intentar eliminar el video tutorial.');
+    }
+}
+window.eliminarVideoTutorial = eliminarVideoTutorial;
+
 
 // ==========================================
 // HU20: Lógica del Dashboard Gerencial & Reportes Ejecutivos

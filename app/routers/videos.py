@@ -96,7 +96,9 @@ async def create_video(
         titulo=titulo,
         descripcion=descripcion,
         url_video=ruta_archivo,
-        tags=tags_lower
+        tags=tags_lower,
+        reproducciones=0,
+        casos_resueltos=0
     )
 
     db.add(db_video)
@@ -112,7 +114,9 @@ async def create_video(
         descripcion=db_video.descripcion,
         url_video=url_firmada,
         tags=db_video.tags,
-        fecha_subida=db_video.fecha_subida
+        fecha_subida=db_video.fecha_subida,
+        reproducciones=getattr(db_video, "reproducciones", 0) or 0,
+        casos_resueltos=getattr(db_video, "casos_resueltos", 0) or 0
     )
 
 
@@ -131,7 +135,7 @@ def get_videos(
         conditions = [models.VideoTutorial.tags.ilike(f"%{t}%") for t in search_tags]
         query = query.filter(or_(*conditions))
 
-    videos = query.offset(skip).limit(limit).all()
+    videos = query.order_by(models.VideoTutorial.id.desc()).offset(skip).limit(limit).all()
 
     client = get_supabase_client()
     storage = client.storage
@@ -146,7 +150,9 @@ def get_videos(
                 descripcion=video.descripcion,
                 url_video=url_firmada,
                 tags=video.tags,
-                fecha_subida=video.fecha_subida
+                fecha_subida=video.fecha_subida,
+                reproducciones=getattr(video, "reproducciones", 0) or 0,
+                casos_resueltos=getattr(video, "casos_resueltos", 0) or 0
             )
         )
 
@@ -169,5 +175,55 @@ def get_video_by_id(video_id: int, db: Session = Depends(get_db)):
         descripcion=video.descripcion,
         url_video=url_firmada,
         tags=video.tags,
-        fecha_subida=video.fecha_subida
+        fecha_subida=video.fecha_subida,
+        reproducciones=getattr(video, "reproducciones", 0) or 0,
+        casos_resueltos=getattr(video, "casos_resueltos", 0) or 0
     )
+
+
+@router.delete("/{video_id}")
+def delete_video(video_id: int, db: Session = Depends(get_db)):
+    """Elimina un video tutorial y su archivo asociado en Supabase Storage."""
+    video = db.query(models.VideoTutorial).filter(models.VideoTutorial.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video tutorial no encontrado")
+
+    # Intentar eliminar de Supabase Storage
+    try:
+        client = get_supabase_client()
+        storage = client.storage
+        clean_path = os.path.basename(video.url_video) if "/static/videos/" in video.url_video else video.url_video
+        if clean_path and not clean_path.startswith("http"):
+            storage.from_(BUCKET_NAME).remove([clean_path])
+    except Exception as e:
+        logger.warning(f"[Supabase Storage] Error al eliminar archivo de video {video.url_video}: {e}")
+
+    db.delete(video)
+    db.commit()
+    return {"mensaje": "Video tutorial eliminado exitosamente", "id": video_id}
+
+
+@router.post("/{video_id}/reproducir")
+def registrar_reproduccion(video_id: int, db: Session = Depends(get_db)):
+    """Incrementa en 1 el contador de reproducciones del video tutorial."""
+    video = db.query(models.VideoTutorial).filter(models.VideoTutorial.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video tutorial no encontrado")
+
+    video.reproducciones = (getattr(video, "reproducciones", 0) or 0) + 1
+    db.commit()
+    db.refresh(video)
+    return {"id": video.id, "reproducciones": video.reproducciones}
+
+
+@router.post("/{video_id}/resolver")
+def registrar_caso_resuelto(video_id: int, db: Session = Depends(get_db)):
+    """Incrementa en 1 el contador de casos resueltos por el video tutorial (botón 'Solucioné mi problema')."""
+    video = db.query(models.VideoTutorial).filter(models.VideoTutorial.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video tutorial no encontrado")
+
+    video.casos_resueltos = (getattr(video, "casos_resueltos", 0) or 0) + 1
+    db.commit()
+    db.refresh(video)
+    return {"id": video.id, "casos_resueltos": video.casos_resueltos}

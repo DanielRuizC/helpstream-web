@@ -169,6 +169,8 @@ class VideoRespuesta(BaseModel):
     url_video: str
     tags: str
     fecha_subida: datetime
+    reproducciones: int = 0
+    casos_resueltos: int = 0
 
     class Config:
         from_attributes = True
