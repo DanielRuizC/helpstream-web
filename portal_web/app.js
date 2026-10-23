@@ -718,8 +718,8 @@ async function cargarDirectorioUsuarios() {
         usuarios.forEach(u => {
             const tr = document.createElement('tr');
             const rolNombre = rolesMap[u.rol_id] || `Rol ${u.rol_id}`;
-            const estadoBadge = u.activo 
-                ? '<span class="badge bg-success">Activo</span>' 
+            const estadoBadge = u.activo
+                ? '<span class="badge bg-success">Activo</span>'
                 : '<span class="badge bg-secondary">Inactivo</span>';
 
             tr.innerHTML = `
@@ -911,7 +911,7 @@ function inicializarSidebar() {
 function switchView(viewName) {
     document.getElementById('view-dashboard').style.display = 'none';
     document.getElementById('view-knowledge-base').style.display = 'none';
-    
+
     document.getElementById('nav-dashboard').classList.remove('active');
     document.getElementById('nav-kb').classList.remove('active');
 
@@ -919,7 +919,7 @@ function switchView(viewName) {
         document.getElementById('view-dashboard').style.display = 'block';
         document.getElementById('nav-dashboard').classList.add('active');
         // Recargar tickets al volver al dashboard de forma silenciosa
-        cargarTickets(true); 
+        cargarTickets(true);
     } else if (viewName === 'knowledge-base') {
         document.getElementById('view-knowledge-base').style.display = 'block';
         document.getElementById('nav-kb').classList.add('active');
@@ -991,14 +991,14 @@ async function cargarTickets(silencioso = false) {
     try {
         const response = await fetch(`${API_URL}/tickets/?skip=0&limit=100`);
         if (!response.ok) throw new Error("Error al cargar los tickets");
-        
+
         allTickets = await response.json();
         window.allTickets = allTickets; // Asegurar referencia global accesible
-        
+
         // Inicializar vistas: contadores superiores y tabla
         calcularMetricas(allTickets);
         aplicarFiltros(); // Esto llamará a renderTickets() con los filtros actuales
-        
+
     } catch (error) {
         console.error("Error al cargar los tickets:", error);
         if (!silencioso) {
@@ -1017,7 +1017,7 @@ function calcularMetricas(tickets) {
     let abiertos = 0;
     let resueltos = 0;
     let nuevosHoy = 0;
-    
+
     const hoy = new Date();
     // Obtener fecha de hoy en formato YYYY-MM-DD en hora de Lima
     const formatoHoy = hoy.toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
@@ -1029,7 +1029,7 @@ function calcularMetricas(tickets) {
         } else {
             abiertos++;
         }
-        
+
         // Tickets de Hoy en hora de Lima
         if (t.fecha_creacion) {
             try {
@@ -1065,8 +1065,8 @@ function aplicarFiltros() {
         // 1. Filtro por Texto (ID o Descripción)
         let matchesSearch = true;
         if (searchText) {
-            matchesSearch = ticket.id.toString().includes(searchText) || 
-                            ticket.descripcion.toLowerCase().includes(searchText);
+            matchesSearch = ticket.id.toString().includes(searchText) ||
+                ticket.descripcion.toLowerCase().includes(searchText);
         }
 
         // 2. Filtro por Criticidad
@@ -1139,7 +1139,7 @@ function renderTickets(tickets) {
 
         // Badge Estado
         const estadoBadge = obtenerBadgeEstado(ticket.estado);
-        
+
         // Badge Criticidad
         const criticidad = ticket.criticidad || "Medio";
         let criticidadBadge = "badge-medio";
@@ -1191,7 +1191,7 @@ function renderTickets(tickets) {
                 ? ticket.evidencia_url
                 : `${API_URL}${ticket.evidencia_url.startsWith('/') ? '' : '/'}${ticket.evidencia_url}`;
         }
-        const evidenciaHtml = ticket.evidencia_url 
+        const evidenciaHtml = ticket.evidencia_url
             ? `<a href="${evidenciaHref}" target="_blank" class="btn btn-sm btn-outline-info rounded-pill px-3"><i class="bi bi-paperclip"></i> Ver</a>`
             : `<span class="text-muted small"><i class="bi bi-dash"></i> Sin adjunto</span>`;
 
@@ -1423,9 +1423,9 @@ function abrirModalGestion(ticketOrId, estadoActual, comentarioActual) {
 
         // 2. Información del Solicitante y Ubicación
         // Soporta llaves directas del backend (nombre_usuario, solicitante) y objetos anidados (usuario, creador)
-        let nombreUsuario = ticket?.nombre_usuario 
-            || ticket?.solicitante 
-            || ticket?.usuario?.nombre 
+        let nombreUsuario = ticket?.nombre_usuario
+            || ticket?.solicitante
+            || ticket?.usuario?.nombre
             || ticket?.creador?.nombre;
 
         if (!nombreUsuario && ticket?.creador?.nombres) {
@@ -1450,9 +1450,9 @@ function abrirModalGestion(ticketOrId, estadoActual, comentarioActual) {
             usuarioEl.textContent = nombreUsuario;
         }
 
-        const correoVal = ticket?.correo 
-            || ticket?.correo_solicitante 
-            || ticket?.usuario?.correo 
+        const correoVal = ticket?.correo
+            || ticket?.correo_solicitante
+            || ticket?.usuario?.correo
             || ticket?.creador?.correo;
         const correoUsuario = (correoVal && String(correoVal).trim() !== '' && String(correoVal).trim() !== '-')
             ? String(correoVal).trim()
@@ -1880,7 +1880,7 @@ function verVideoTutorial(id) {
     if (player) {
         player.src = video.url_video;
         player.load();
-        player.play().catch(() => {});
+        player.play().catch(() => { });
     }
     if (btnDescargar) {
         btnDescargar.href = video.url_video;
@@ -2061,10 +2061,10 @@ async function cargarReportesGerenciales() {
         // 1. Actualizar KPIs Principales
         const kpis = data.kpis || {};
         const slaPct = kpis.cumplimiento_sla_porcentaje !== undefined ? kpis.cumplimiento_sla_porcentaje : 100;
-        
+
         const elSla = document.getElementById('kpiSlaPorcentaje');
         if (elSla) elSla.textContent = `${slaPct}%`;
-        
+
         const elSlaBar = document.getElementById('kpiSlaProgressBar');
         if (elSlaBar) {
             elSlaBar.style.width = `${slaPct}%`;
@@ -2680,7 +2680,7 @@ function renderChartSoporteVsAutoatencion(serieData) {
                     borderRadius: 6
                 },
                 {
-                    label: 'Autoatención (HU15.1/2)',
+                    label: 'Autoatención',
                     data: autoatencion,
                     backgroundColor: '#107c41',
                     borderColor: '#0b5a2f',

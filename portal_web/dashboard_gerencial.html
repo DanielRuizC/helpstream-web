@@ -52,22 +52,28 @@
         </div>
 
         <div class="mt-4">
-            <div class="px-3 text-uppercase text-white-50 small fw-bold mb-2" style="font-size: 0.7rem; letter-spacing: 0.6px;">Módulo Ejecutivo</div>
-            <a href="dashboard_gerencial.html" class="nav-link active text-decoration-none" id="nav-gerencial" onclick="cambiarVistaGerencial('reportes'); return false;">
+            <div class="px-3 text-uppercase text-white-50 small fw-bold mb-2"
+                style="font-size: 0.7rem; letter-spacing: 0.6px;">Módulo Ejecutivo</div>
+            <a href="dashboard_gerencial.html" class="nav-link active text-decoration-none" id="nav-gerencial"
+                onclick="cambiarVistaGerencial('reportes'); return false;">
                 <i class="bi bi-speedometer2"></i> Dashboard Gerencial
             </a>
-            <a href="#view-analytics" class="nav-link text-decoration-none" id="nav-analytics" onclick="cambiarVistaGerencial('analytics'); return false;">
+            <a href="#view-analytics" class="nav-link text-decoration-none" id="nav-analytics"
+                onclick="cambiarVistaGerencial('analytics'); return false;">
                 <i class="bi bi-graph-up-arrow"></i> HelpStream Analytics
             </a>
-            <a href="#modulo-reportes" class="nav-link text-decoration-none" id="nav-reportes-scroll" onclick="cambiarVistaGerencial('reportes');">
+            <a href="#modulo-reportes" class="nav-link text-decoration-none" id="nav-reportes-scroll"
+                onclick="cambiarVistaGerencial('reportes');">
                 <i class="bi bi-file-earmark-bar-graph-fill"></i> Módulo de Reportes
             </a>
-            <a href="#metricas-sla" class="nav-link text-decoration-none" id="nav-sla-scroll" onclick="cambiarVistaGerencial('reportes');">
+            <a href="#metricas-sla" class="nav-link text-decoration-none" id="nav-sla-scroll"
+                onclick="cambiarVistaGerencial('reportes');">
                 <i class="bi bi-clock-history"></i> Métricas & SLAs
             </a>
 
             <div class="sidebar-divider my-3"></div>
-            <div class="px-3 text-uppercase text-white-50 small fw-bold mb-2" style="font-size: 0.7rem; letter-spacing: 0.6px;">Gestión de Usuarios</div>
+            <div class="px-3 text-uppercase text-white-50 small fw-bold mb-2"
+                style="font-size: 0.7rem; letter-spacing: 0.6px;">Gestión de Usuarios</div>
             <a href="directorio_usuarios.html" class="nav-link text-decoration-none" id="nav-dir-user">
                 <i class="bi bi-people-fill"></i> Directorio de Usuarios
             </a>
@@ -76,7 +82,8 @@
             </a>
 
             <div class="sidebar-divider my-3"></div>
-            <div class="px-3 text-uppercase text-white-50 small fw-bold mb-2" style="font-size: 0.7rem; letter-spacing: 0.6px;">Portal Operativo</div>
+            <div class="px-3 text-uppercase text-white-50 small fw-bold mb-2"
+                style="font-size: 0.7rem; letter-spacing: 0.6px;">Portal Operativo</div>
             <a href="index.html" class="nav-link text-decoration-none" id="nav-portal-operativo">
                 <i class="bi bi-layout-text-window-reverse"></i> Mesa de Ayuda
             </a>
@@ -88,7 +95,8 @@
         <!-- Top Header Ejecutivo -->
         <div class="top-header">
             <div class="d-flex align-items-center">
-                <button class="sidebar-toggle-btn me-3" id="sidebarToggle" type="button" aria-label="Alternar menú lateral" title="Menú lateral">
+                <button class="sidebar-toggle-btn me-3" id="sidebarToggle" type="button"
+                    aria-label="Alternar menú lateral" title="Menú lateral">
                     <i class="bi bi-list fs-3"></i>
                 </button>
                 <div class="d-flex align-items-center gap-2">
@@ -106,7 +114,8 @@
                 <div class="user-avatar avatar-jefatura fw-bold navbar-user-initials" id="navbar-user-initials">
                     JT
                 </div>
-                <button class="btn btn-outline-danger btn-sm rounded-pill ms-2 px-3 fw-semibold" onclick="cerrarSesion()" title="Cerrar sesión">
+                <button class="btn btn-outline-danger btn-sm rounded-pill ms-2 px-3 fw-semibold"
+                    onclick="cerrarSesion()" title="Cerrar sesión">
                     <i class="bi bi-box-arrow-right me-1"></i> Salir
                 </button>
             </div>
@@ -117,8 +126,10 @@
             <!-- Título de Sección y Controles -->
             <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
                 <div>
-                    <h3 class="fw-bold mb-1" style="color: var(--admin-anthracite);">Panel Ejecutivo de Control & Reportes</h3>
-                    <p class="text-muted small mb-0">Supervisión estratégica de incidencias, auditoría de tiempos SLA y análisis de autoatención (HU20).</p>
+                    <h3 class="fw-bold mb-1" style="color: var(--admin-anthracite);">Panel Ejecutivo de Control &
+                        Reportes</h3>
+                    <p class="text-muted small mb-0">Supervisión estratégica de incidencias, auditoría de tiempos SLA y
+                        análisis de autoatención.</p>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
                     <button class="btn btn-burnt-orange shadow-sm" id="btnRecargarDashboard">
@@ -152,10 +163,13 @@
                         </div>
                         <div class="kpi-value text-burnt-orange" id="kpiSlaPorcentaje">--%</div>
                         <div class="progress mt-2" style="height: 6px;">
-                            <div id="kpiSlaProgressBar" class="progress-bar progress-bar-burnt-orange" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                            <div id="kpiSlaProgressBar" class="progress-bar progress-bar-burnt-orange"
+                                role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0"
+                                aria-valuemax="100"></div>
                         </div>
                         <span class="kpi-subtext d-block mt-2">
-                            <span class="text-success fw-bold" id="kpiSlaSubtext">-- dentro de tiempo</span> · Meta: &gt;90%
+                            <span class="text-success fw-bold" id="kpiSlaSubtext">-- dentro de tiempo</span> · Meta:
+                            &gt;90%
                         </span>
                     </div>
                 </div>
@@ -165,15 +179,18 @@
                     <div class="kpi-card p-3">
                         <div class="d-flex align-items-center justify-content-between mb-2">
                             <span class="kpi-title">Volumen de Tickets</span>
-                            <div class="kpi-icon-wrapper icon-anthracite mb-0" style="width: 38px; height: 38px; font-size: 1.2rem;">
+                            <div class="kpi-icon-wrapper icon-anthracite mb-0"
+                                style="width: 38px; height: 38px; font-size: 1.2rem;">
                                 <i class="bi bi-ticket-detailed-fill"></i>
                             </div>
                         </div>
                         <div class="kpi-value" id="kpiTotalTickets">--</div>
                         <span class="kpi-subtext d-block mt-2" id="kpiTicketsDesglose">
                             <span class="badge bg-danger bg-opacity-10 text-danger" id="kpiAbiertos">-- Abiertos</span>
-                            <span class="badge bg-warning bg-opacity-10 text-warning" id="kpiEnProgreso">-- En Prog.</span>
-                            <span class="badge bg-success bg-opacity-10 text-success" id="kpiResueltos">-- Resueltos</span>
+                            <span class="badge bg-warning bg-opacity-10 text-warning" id="kpiEnProgreso">-- En
+                                Prog.</span>
+                            <span class="badge bg-success bg-opacity-10 text-success" id="kpiResueltos">--
+                                Resueltos</span>
                         </span>
                     </div>
                 </div>
@@ -183,7 +200,8 @@
                     <div class="kpi-card p-3">
                         <div class="d-flex align-items-center justify-content-between mb-2">
                             <span class="kpi-title">Incidentes Críticos</span>
-                            <div class="kpi-icon-wrapper mb-0" style="width: 38px; height: 38px; font-size: 1.2rem; background: rgba(220, 53, 69, 0.12); color: #dc3545;">
+                            <div class="kpi-icon-wrapper mb-0"
+                                style="width: 38px; height: 38px; font-size: 1.2rem; background: rgba(220, 53, 69, 0.12); color: #dc3545;">
                                 <i class="bi bi-exclamation-triangle-fill"></i>
                             </div>
                         </div>
@@ -199,7 +217,8 @@
                     <div class="kpi-card p-3">
                         <div class="d-flex align-items-center justify-content-between mb-2">
                             <span class="kpi-title">Autoatención (Videos)</span>
-                            <div class="kpi-icon-wrapper mb-0" style="width: 38px; height: 38px; font-size: 1.2rem; background: rgba(13, 202, 240, 0.12); color: #0dcaf0;">
+                            <div class="kpi-icon-wrapper mb-0"
+                                style="width: 38px; height: 38px; font-size: 1.2rem; background: rgba(13, 202, 240, 0.12); color: #0dcaf0;">
                                 <i class="bi bi-play-btn-fill"></i>
                             </div>
                         </div>
@@ -215,13 +234,16 @@
             <div class="row g-3 mb-4">
                 <!-- Panel de Criticidad -->
                 <div class="col-12 col-md-6 col-lg-4">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 h-100" style="background: var(--admin-card-bg); border: 1px solid var(--admin-border) !important;">
-                        <h6 class="fw-bold mb-3 d-flex align-items-center gap-2" style="color: var(--admin-anthracite);">
+                    <div class="card border-0 shadow-sm rounded-4 p-3 h-100"
+                        style="background: var(--admin-card-bg); border: 1px solid var(--admin-border) !important;">
+                        <h6 class="fw-bold mb-3 d-flex align-items-center gap-2"
+                            style="color: var(--admin-anthracite);">
                             <i class="bi bi-pie-chart-fill text-warning"></i> Desglose por Criticidad
                         </h6>
                         <div class="mb-3">
                             <div class="d-flex justify-content-between small mb-1">
-                                <span class="fw-semibold text-danger"><i class="bi bi-circle-fill me-1" style="font-size: 0.6rem;"></i> Alta (24h SLA)</span>
+                                <span class="fw-semibold text-danger"><i class="bi bi-circle-fill me-1"
+                                        style="font-size: 0.6rem;"></i> Alta (24h SLA)</span>
                                 <span class="fw-bold" id="distCritAlta">0 (0%)</span>
                             </div>
                             <div class="progress" style="height: 6px;">
@@ -230,7 +252,8 @@
                         </div>
                         <div class="mb-3">
                             <div class="d-flex justify-content-between small mb-1">
-                                <span class="fw-semibold text-warning"><i class="bi bi-circle-fill me-1" style="font-size: 0.6rem;"></i> Media (72h SLA)</span>
+                                <span class="fw-semibold text-warning"><i class="bi bi-circle-fill me-1"
+                                        style="font-size: 0.6rem;"></i> Media (72h SLA)</span>
                                 <span class="fw-bold" id="distCritMedia">0 (0%)</span>
                             </div>
                             <div class="progress" style="height: 6px;">
@@ -239,7 +262,8 @@
                         </div>
                         <div>
                             <div class="d-flex justify-content-between small mb-1">
-                                <span class="fw-semibold text-info"><i class="bi bi-circle-fill me-1" style="font-size: 0.6rem;"></i> Baja (168h SLA)</span>
+                                <span class="fw-semibold text-info"><i class="bi bi-circle-fill me-1"
+                                        style="font-size: 0.6rem;"></i> Baja (168h SLA)</span>
                                 <span class="fw-bold" id="distCritBaja">0 (0%)</span>
                             </div>
                             <div class="progress" style="height: 6px;">
@@ -251,8 +275,10 @@
 
                 <!-- Panel de Estado Operativo -->
                 <div class="col-12 col-md-6 col-lg-4">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 h-100" style="background: var(--admin-card-bg); border: 1px solid var(--admin-border) !important;">
-                        <h6 class="fw-bold mb-3 d-flex align-items-center gap-2" style="color: var(--admin-anthracite);">
+                    <div class="card border-0 shadow-sm rounded-4 p-3 h-100"
+                        style="background: var(--admin-card-bg); border: 1px solid var(--admin-border) !important;">
+                        <h6 class="fw-bold mb-3 d-flex align-items-center gap-2"
+                            style="color: var(--admin-anthracite);">
                             <i class="bi bi-activity text-success"></i> Tasa de Resolución de Tickets
                         </h6>
                         <div class="d-flex align-items-center justify-content-between mb-2">
@@ -281,11 +307,14 @@
 
                 <!-- Panel de Sedes y Pisos -->
                 <div class="col-12 col-lg-4">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 h-100" style="background: var(--admin-card-bg); border: 1px solid var(--admin-border) !important;">
-                        <h6 class="fw-bold mb-3 d-flex align-items-center gap-2" style="color: var(--admin-anthracite);">
+                    <div class="card border-0 shadow-sm rounded-4 p-3 h-100"
+                        style="background: var(--admin-card-bg); border: 1px solid var(--admin-border) !important;">
+                        <h6 class="fw-bold mb-3 d-flex align-items-center gap-2"
+                            style="color: var(--admin-anthracite);">
                             <i class="bi bi-geo-alt-fill text-danger"></i> Concentración por Ubicación
                         </h6>
-                        <div id="listaDistribucionSedes" class="small d-flex flex-column gap-2" style="max-height: 180px; overflow-y: auto;">
+                        <div id="listaDistribucionSedes" class="small d-flex flex-column gap-2"
+                            style="max-height: 180px; overflow-y: auto;">
                             <span class="text-muted text-center py-2">Cargando ubicaciones...</span>
                         </div>
                     </div>
@@ -298,8 +327,10 @@
                     <div class="col-12 col-md-4">
                         <label class="form-label small fw-bold text-uppercase text-muted mb-1">Buscar Ticket</label>
                         <div class="input-group input-group-sm">
-                            <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
-                            <input type="text" id="filtroBuscarTexto" class="form-control border-start-0" placeholder="Buscar por ID, solicitante o problema...">
+                            <span class="input-group-text bg-white border-end-0 text-muted"><i
+                                    class="bi bi-search"></i></span>
+                            <input type="text" id="filtroBuscarTexto" class="form-control border-start-0"
+                                placeholder="Buscar por ID, solicitante o problema...">
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
@@ -334,9 +365,11 @@
             <div class="table-container mb-5">
                 <div class="d-flex align-items-center justify-content-between mb-3">
                     <h5 class="fw-bold mb-0" style="color: var(--admin-anthracite);">
-                        <i class="bi bi-table me-2 text-warning"></i> Reporte Consolidado de Incidencias & Cumplimiento de SLA
+                        <i class="bi bi-table me-2 text-warning"></i> Reporte Consolidado de Incidencias & Cumplimiento
+                        de SLA
                     </h5>
-                    <span class="badge bg-secondary bg-opacity-10 text-secondary" id="totalFiltradosBadge">Mostrando 0 tickets</span>
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary" id="totalFiltradosBadge">Mostrando 0
+                        tickets</span>
                 </div>
 
                 <div class="table-responsive">
@@ -377,7 +410,8 @@
                         <h3 class="fw-bold mb-0" style="color: var(--admin-anthracite);">HelpStream Analytics</h3>
                         <span class="badge-jefatura"><i class="bi bi-cpu-fill me-1"></i> Inteligencia Operativa</span>
                     </div>
-                    <p class="text-muted small mb-0">Módulo centralizado de métricas gerenciales, ahorro de horas-hombre (HU15.1), series temporales (HU15.2) y mapas de calor.</p>
+                    <p class="text-muted small mb-0">Módulo centralizado de métricas gerenciales, ahorro de
+                        horas-hombre, series temporales y mapas de calor.</p>
                 </div>
             </div>
 
@@ -386,19 +420,24 @@
                 <div class="card-body p-3 p-lg-4">
                     <div class="row g-3 align-items-end">
                         <div class="col-12 col-sm-6 col-md-3">
-                            <label for="analyticsFechaInicio" class="form-label small fw-bold text-muted text-uppercase mb-1">
+                            <label for="analyticsFechaInicio"
+                                class="form-label small fw-bold text-muted text-uppercase mb-1">
                                 <i class="bi bi-calendar-event me-1 text-burnt-orange"></i> Fecha Inicio
                             </label>
-                            <input type="date" class="form-control form-control-sm executive-input" id="analyticsFechaInicio">
+                            <input type="date" class="form-control form-control-sm executive-input"
+                                id="analyticsFechaInicio">
                         </div>
                         <div class="col-12 col-sm-6 col-md-3">
-                            <label for="analyticsFechaFin" class="form-label small fw-bold text-muted text-uppercase mb-1">
+                            <label for="analyticsFechaFin"
+                                class="form-label small fw-bold text-muted text-uppercase mb-1">
                                 <i class="bi bi-calendar-event me-1 text-burnt-orange"></i> Fecha Fin
                             </label>
-                            <input type="date" class="form-control form-control-sm executive-input" id="analyticsFechaFin">
+                            <input type="date" class="form-control form-control-sm executive-input"
+                                id="analyticsFechaFin">
                         </div>
                         <div class="col-12 col-sm-6 col-md-2">
-                            <label for="analyticsSelectAnio" class="form-label small fw-bold text-muted text-uppercase mb-1">
+                            <label for="analyticsSelectAnio"
+                                class="form-label small fw-bold text-muted text-uppercase mb-1">
                                 <i class="bi bi-calendar-range me-1 text-burnt-orange"></i> Año
                             </label>
                             <select class="form-select form-select-sm executive-input" id="analyticsSelectAnio">
@@ -406,13 +445,17 @@
                             </select>
                         </div>
                         <div class="col-12 col-sm-6 col-md-4 d-flex flex-wrap gap-2 justify-content-md-end">
-                            <button class="btn btn-burnt-orange btn-sm shadow-sm px-3 fw-semibold flex-grow-1 flex-md-grow-0" id="btnAplicarFiltrosAnalytics">
+                            <button
+                                class="btn btn-burnt-orange btn-sm shadow-sm px-3 fw-semibold flex-grow-1 flex-md-grow-0"
+                                id="btnAplicarFiltrosAnalytics">
                                 <i class="bi bi-funnel-fill me-1"></i> Aplicar Filtros
                             </button>
-                            <button class="btn btn-excel btn-sm shadow-sm px-3 fw-semibold flex-grow-1 flex-md-grow-0" id="btnExportarExcel">
+                            <button class="btn btn-excel btn-sm shadow-sm px-3 fw-semibold flex-grow-1 flex-md-grow-0"
+                                id="btnExportarExcel">
                                 <i class="bi bi-file-earmark-excel-fill me-1"></i> Exportar Excel
                             </button>
-                            <button class="btn btn-outline-secondary btn-sm shadow-sm px-2" id="btnResetFiltrosAnalytics" title="Restablecer filtros">
+                            <button class="btn btn-outline-secondary btn-sm shadow-sm px-2"
+                                id="btnResetFiltrosAnalytics" title="Restablecer filtros">
                                 <i class="bi bi-arrow-counterclockwise"></i>
                             </button>
                         </div>
@@ -438,7 +481,7 @@
                             </div>
                         </div>
                         <div class="kpi-value text-burnt-orange" id="kpiHorasAhorradas">-- hrs</div>
-                        <span class="kpi-subtext" id="kpiSubtextHoras">Autoatención HU15.1 (-- tickets)</span>
+                        <span class="kpi-subtext" id="kpiSubtextHoras">Autoatención (-- tickets)</span>
                     </div>
                 </div>
 
@@ -447,7 +490,8 @@
                     <div class="kpi-card p-3">
                         <div class="d-flex align-items-center justify-content-between mb-2">
                             <span class="kpi-title">MTTR (Tiempo Resolución)</span>
-                            <div class="kpi-icon-wrapper mb-0" style="width: 38px; height: 38px; font-size: 1.2rem; background: rgba(26, 30, 35, 0.08); color: var(--admin-anthracite);">
+                            <div class="kpi-icon-wrapper mb-0"
+                                style="width: 38px; height: 38px; font-size: 1.2rem; background: rgba(26, 30, 35, 0.08); color: var(--admin-anthracite);">
                                 <i class="bi bi-stopwatch-fill"></i>
                             </div>
                         </div>
@@ -461,7 +505,8 @@
                     <div class="kpi-card p-3">
                         <div class="d-flex align-items-center justify-content-between mb-2">
                             <span class="kpi-title">Resolución 1er Contacto (FCR)</span>
-                            <div class="kpi-icon-wrapper mb-0" style="width: 38px; height: 38px; font-size: 1.2rem; background: rgba(22, 101, 52, 0.1); color: #15803d;">
+                            <div class="kpi-icon-wrapper mb-0"
+                                style="width: 38px; height: 38px; font-size: 1.2rem; background: rgba(22, 101, 52, 0.1); color: #15803d;">
                                 <i class="bi bi-patch-check-fill"></i>
                             </div>
                         </div>
@@ -475,7 +520,8 @@
                     <div class="kpi-card p-3">
                         <div class="d-flex align-items-center justify-content-between mb-2">
                             <span class="kpi-title">Tickets Reabiertos</span>
-                            <div class="kpi-icon-wrapper mb-0" style="width: 38px; height: 38px; font-size: 1.2rem; background: rgba(202, 138, 4, 0.12); color: #a16207;">
+                            <div class="kpi-icon-wrapper mb-0"
+                                style="width: 38px; height: 38px; font-size: 1.2rem; background: rgba(202, 138, 4, 0.12); color: #a16207;">
                                 <i class="bi bi-arrow-repeat"></i>
                             </div>
                         </div>
@@ -493,9 +539,10 @@
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <div>
                                 <h6 class="fw-bold mb-1" style="color: var(--admin-anthracite);">
-                                    <i class="bi bi-bezier2 me-2 text-burnt-orange"></i> Soporte Técnico vs Autoatención (HU15.2)
+                                    <i class="bi bi-bezier2 me-2 text-burnt-orange"></i> Soporte Técnico vs Autoatención
                                 </h6>
-                                <p class="text-muted small mb-0">Evolución temporal del impacto de autoatención frente al soporte tradicional</p>
+                                <p class="text-muted small mb-0">Evolución temporal del impacto de autoatención frente
+                                    al soporte tradicional</p>
                             </div>
                         </div>
                         <div style="position: relative; height: 280px; width: 100%;">
@@ -509,7 +556,8 @@
                     <div class="card border-0 shadow-sm rounded-4 h-100 p-3 p-lg-4">
                         <div class="mb-3">
                             <h6 class="fw-bold mb-1" style="color: var(--admin-anthracite);">
-                                <i class="bi bi-bar-chart-steps me-2 text-burnt-orange"></i> Top 5 Incidentes Recurrentes
+                                <i class="bi bi-bar-chart-steps me-2 text-burnt-orange"></i> Top 5 Incidentes
+                                Recurrentes
                             </h6>
                             <p class="text-muted small mb-0">Categorías con mayor volumen en el período</p>
                         </div>
@@ -524,26 +572,34 @@
             <div class="row g-4 mb-4">
                 <div class="col-12">
                     <div class="card border-0 shadow-sm rounded-4 p-3 p-lg-4">
-                        <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2 mb-3">
+                        <div
+                            class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2 mb-3">
                             <div>
                                 <h6 class="fw-bold mb-1" style="color: var(--admin-anthracite);">
-                                    <i class="bi bi-grid-3x3-gap-fill me-2 text-burnt-orange"></i> Mapa de Calor de Demanda Operativa
+                                    <i class="bi bi-grid-3x3-gap-fill me-2 text-burnt-orange"></i> Mapa de Calor de
+                                    Demanda Operativa
                                 </h6>
-                                <p class="text-muted small mb-0">Concentración de incidencias agrupadas por día de la semana y franja horaria</p>
+                                <p class="text-muted small mb-0">Concentración de incidencias agrupadas por día de la
+                                    semana y franja horaria</p>
                             </div>
                             <div class="d-flex align-items-center gap-2 small text-muted">
                                 <span>Baja</span>
                                 <div class="d-flex gap-1">
-                                    <span style="width: 14px; height: 14px; background: rgba(211,84,0,0.1); border-radius: 3px; display: inline-block;"></span>
-                                    <span style="width: 14px; height: 14px; background: rgba(211,84,0,0.35); border-radius: 3px; display: inline-block;"></span>
-                                    <span style="width: 14px; height: 14px; background: rgba(211,84,0,0.65); border-radius: 3px; display: inline-block;"></span>
-                                    <span style="width: 14px; height: 14px; background: rgba(211,84,0,1); border-radius: 3px; display: inline-block;"></span>
+                                    <span
+                                        style="width: 14px; height: 14px; background: rgba(211,84,0,0.1); border-radius: 3px; display: inline-block;"></span>
+                                    <span
+                                        style="width: 14px; height: 14px; background: rgba(211,84,0,0.35); border-radius: 3px; display: inline-block;"></span>
+                                    <span
+                                        style="width: 14px; height: 14px; background: rgba(211,84,0,0.65); border-radius: 3px; display: inline-block;"></span>
+                                    <span
+                                        style="width: 14px; height: 14px; background: rgba(211,84,0,1); border-radius: 3px; display: inline-block;"></span>
                                 </div>
                                 <span>Alta</span>
                             </div>
                         </div>
                         <div class="table-responsive">
-                            <table class="table table-bordered align-middle text-center mb-0 heatmap-table" id="tablaMapaCalor">
+                            <table class="table table-bordered align-middle text-center mb-0 heatmap-table"
+                                id="tablaMapaCalor">
                                 <thead class="table-light">
                                     <tr id="heatmapHeaderRow">
                                         <th style="min-width: 110px;">Día</th>
@@ -565,11 +621,14 @@
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <div>
                                 <h6 class="fw-bold mb-1" style="color: var(--admin-anthracite);">
-                                    <i class="bi bi-calendar3 me-2 text-burnt-orange"></i> Resumen Mensual de Atenciones & SLA
+                                    <i class="bi bi-calendar3 me-2 text-burnt-orange"></i> Resumen Mensual de Atenciones
+                                    & SLA
                                 </h6>
-                                <p class="text-muted small mb-0">Consolidado mensual con tasas de resolución y cumplimiento de acuerdos de servicio</p>
+                                <p class="text-muted small mb-0">Consolidado mensual con tasas de resolución y
+                                    cumplimiento de acuerdos de servicio</p>
                             </div>
-                            <span class="badge bg-secondary-subtle text-secondary px-3 py-2 rounded-pill fw-semibold" id="badgeAnioResumen">Año --</span>
+                            <span class="badge bg-secondary-subtle text-secondary px-3 py-2 rounded-pill fw-semibold"
+                                id="badgeAnioResumen">Año --</span>
                         </div>
                         <div class="table-responsive">
                             <table class="table table-hover align-middle mb-0 executive-table" id="tablaResumenMensual">
@@ -580,7 +639,7 @@
                                         <th class="text-center">Total Atenciones</th>
                                         <th class="text-center">Incidentes Resueltos</th>
                                         <th class="text-center">% Cumplimiento SLA</th>
-                                        <th class="text-center">Horas Ahorradas (HU15.1)</th>
+                                        <th class="text-center">Horas Ahorradas</th>
                                     </tr>
                                 </thead>
                                 <tbody id="resumenMensualBody">
@@ -595,7 +654,8 @@
     </div>
 
     <!-- Modal de Auditoría Ejecutiva de Ticket -->
-    <div class="modal fade" id="modalAuditoriaTicket" tabindex="-1" aria-labelledby="modalAuditoriaTitle" aria-hidden="true">
+    <div class="modal fade" id="modalAuditoriaTicket" tabindex="-1" aria-labelledby="modalAuditoriaTitle"
+        aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content border-0 shadow-lg rounded-4">
                 <div class="modal-header border-0 pb-0 pt-4 px-4">
@@ -604,8 +664,10 @@
                             <i class="bi bi-clipboard-check-fill"></i>
                         </div>
                         <div>
-                            <h5 class="modal-title fw-bold" id="modalAuditoriaTitle">Detalle de Auditoría - Ticket #<span id="auditTicketId">--</span></h5>
-                            <span class="badge-jefatura py-0 px-2" style="font-size: 0.65rem;">Vista Exclusiva de Jefatura</span>
+                            <h5 class="modal-title fw-bold" id="modalAuditoriaTitle">Detalle de Auditoría - Ticket
+                                #<span id="auditTicketId">--</span></h5>
+                            <span class="badge-jefatura py-0 px-2" style="font-size: 0.65rem;">Vista Exclusiva de
+                                Jefatura</span>
                         </div>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
@@ -641,12 +703,14 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label small fw-bold text-muted text-uppercase">Descripción del Problema</label>
+                        <label class="form-label small fw-bold text-muted text-uppercase">Descripción del
+                            Problema</label>
                         <div class="p-3 bg-light rounded border small" id="auditDescripcion">--</div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label small fw-bold text-muted text-uppercase">Resolución / Comentarios Técnicos</label>
+                        <label class="form-label small fw-bold text-muted text-uppercase">Resolución / Comentarios
+                            Técnicos</label>
                         <div class="p-3 bg-light rounded border small" id="auditComentarios">--</div>
                     </div>
                 </div>
