@@ -273,7 +273,7 @@ def consultar_ultimos_tickets(correo: str, limite: int = 3) -> List[Dict[str, An
         supabase = get_supabase_client()
         res = (
             supabase.table("tickets")
-            .select("id, estado, descripcion, sede, piso, fecha_creacion")
+            .select("id, estado, descripcion, sede, piso, fecha_creacion, comentario_tecnico")
             .eq("correo_solicitante", correo.strip().lower())
             .order("id", desc=True)
             .limit(limite)
@@ -372,6 +372,24 @@ def _formatear_detalle_ticket(descripcion: Optional[str], max_len: int = 100) ->
     return desc_limpia
 
 
+def _formatear_solucion_ticket(comentario: Optional[str], max_len: int = 100) -> Optional[str]:
+    """
+    Limpia y trunca el comentario técnico o solución a un máximo de 100 caracteres.
+    Retorna None si no hay un comentario válido.
+    """
+    if not comentario or not isinstance(comentario, str):
+        return None
+
+    limpio = " ".join(comentario.strip().split())
+    valores_invalidos = {"none", "null", "n/a", "-", "no especificado", "sin comentario", "sin comentarios"}
+    if not limpio or limpio.lower() in valores_invalidos:
+        return None
+
+    if len(limpio) > max_len:
+        return f"{limpio[:max_len].strip()}..."
+    return limpio
+
+
 def _formatear_bloque_ticket(ticket: Dict[str, Any]) -> str:
     """
     Construye el bloque de texto enriquecido en Markdown de Telegram para un ticket.
@@ -380,6 +398,7 @@ def _formatear_bloque_ticket(ticket: Dict[str, Any]) -> str:
     📍 Ubicación: San Isidro | 3er piso - Gerencia General
     📅 Fecha: DD/MM/YYYY
     📝 Detalle: [Descripción truncada a un máximo de 100 caracteres...]
+    💡 Solución: [Comentario técnico truncado a 100 caracteres...] (si está resuelto)
     """
     t_id = ticket.get("id", "S/N")
     estado = (ticket.get("estado") or "Abierto").strip()
@@ -391,12 +410,21 @@ def _formatear_bloque_ticket(ticket: Dict[str, Any]) -> str:
     ubicacion_segura = _sanear_markdown(ubicacion)
     detalle_seguro = _sanear_markdown(detalle)
 
-    return (
-        f"🎫 *Ticket #{t_id}* — [{estado_seguro}]\n"
-        f"📍 *Ubicación:* {ubicacion_segura}\n"
-        f"📅 *Fecha:* {fecha}\n"
+    lineas = [
+        f"🎫 *Ticket #{t_id}* — [{estado_seguro}]",
+        f"📍 *Ubicación:* {ubicacion_segura}",
+        f"📅 *Fecha:* {fecha}",
         f"📝 *Detalle:* {detalle_seguro}"
-    )
+    ]
+
+    # Si el ticket está resuelto y cuenta con solución técnica válida, añadir la línea correspondiente
+    if estado.lower() == "resuelto":
+        solucion = _formatear_solucion_ticket(ticket.get("comentario_tecnico"), max_len=100)
+        if solucion:
+            solucion_segura = _sanear_markdown(solucion)
+            lineas.append(f"💡 *Solución:* {solucion_segura}")
+
+    return "\n".join(lineas)
 
 
 # ============================================================================

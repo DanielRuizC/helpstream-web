@@ -138,6 +138,13 @@ async function iniciarSesion(correo, password) {
             if (userRolId !== null) localStorage.setItem('helpstream_rol_id', String(userRolId));
             localStorage.setItem('helpstream_user_email', correo);
 
+            // Actualización dinámica de favicon según el rol (Jefatura de TI vs. Analista/Técnico)
+            const faviconLink = document.getElementById('app-favicon');
+            if (faviconLink && userRole) {
+                const esJefatura = userRole.toLowerCase().includes('jefe') || userRole.toLowerCase().includes('jefatura');
+                faviconLink.href = esJefatura ? '/static/favicon-jefe.png' : '/static/favicon-tecnico.png';
+            }
+
             // Determinar nombre completo y guardarlo en localStorage
             let nombreCompleto = data.nombre_completo || data.nombre;
             if (!nombreCompleto && (data.nombres || data.apellidos)) {
@@ -250,6 +257,13 @@ function actualizarDatosNavbar() {
     initialEls.forEach(el => {
         el.textContent = iniciales;
     });
+
+    // Actualización dinámica de favicon según el rol en la sesión activa
+    const faviconLink = document.getElementById('app-favicon');
+    if (faviconLink && rol) {
+        const esJefatura = rol.toLowerCase().includes('jefe') || rol.toLowerCase().includes('jefatura');
+        faviconLink.href = esJefatura ? '/static/favicon-jefe.png' : '/static/favicon-tecnico.png';
+    }
 }
 window.actualizarDatosNavbar = actualizarDatosNavbar;
 window.calcularIniciales = calcularIniciales;
