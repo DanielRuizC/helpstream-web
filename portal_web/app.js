@@ -42,6 +42,7 @@ const ENDPOINTS = {
     ROLES: `${API_URL}/api/auth/roles`,             // Lista de roles del sistema
     USUARIOS: `${API_URL}/api/auth/usuarios`,       // Lista y gestión de usuarios
     TICKETS: `${API_URL}/tickets/`,
+    TICKETS_BULK: `${API_URL}/tickets/bulk`,
     VIDEOS: `${API_URL}/videos/`,
     REPORTES_DASHBOARD: `${API_URL}/api/reportes/dashboard`, // HU20: Reportes y dashboard gerencial
     REPORTES_KPIS: `${API_URL}/api/reportes/kpis`,
@@ -2005,6 +2006,33 @@ async function inicializarDashboardGerencial() {
         btnExportarExcel.addEventListener('click', exportarReportesExcel);
     }
 
+    // Configuración de Purga Masiva (Bulk Delete) de tickets exclusiva para Jefatura TI
+    const btnEliminar = document.getElementById('btnEliminarTickets');
+    if (btnEliminar) {
+        btnEliminar.addEventListener('click', ejecutarEliminacionMasivaTickets);
+    }
+
+    const checkAll = document.getElementById('checkAllTickets');
+    if (checkAll) {
+        checkAll.addEventListener('click', () => {
+            const isChecked = checkAll.checked;
+            const visibleCheckboxes = document.querySelectorAll('.ticket-checkbox');
+            visibleCheckboxes.forEach(cb => {
+                cb.checked = isChecked;
+            });
+            actualizarContadorSeleccionados();
+        });
+    }
+
+    const tbodyReportes = document.getElementById('tablaReportesBody');
+    if (tbodyReportes) {
+        tbodyReportes.addEventListener('change', (e) => {
+            if (e.target && e.target.classList.contains('ticket-checkbox')) {
+                actualizarContadorSeleccionados();
+            }
+        });
+    }
+
     // Configuración de controles del Módulo HelpStream Analytics (HU15)
     const btnFiltrarAnalytics = document.getElementById('btnAplicarFiltrosAnalytics');
     const selectAnioAnalytics = document.getElementById('analyticsSelectAnio');
@@ -2224,8 +2252,104 @@ function filtrarReportesGerenciales() {
     const badgeTotal = document.getElementById('totalFiltradosBadge');
     if (badgeTotal) badgeTotal.textContent = `Mostrando ${filtrados.length} de ${allGerencialTickets.length} tickets`;
 
+    const checkAll = document.getElementById('checkAllTickets');
+    if (checkAll) checkAll.checked = false;
+
     renderizarTablaReportes(filtrados);
 }
+
+function esUsuarioJefeTI() {
+    const rol = localStorage.getItem('helpstream_user_role') || '';
+    const rolId = localStorage.getItem('helpstream_rol_id');
+    return rol === 'Jefe de TI' || rol === 'Jefatura de TI' || rolId === '3' || rol.toLowerCase().includes('jefe') || rol.toLowerCase().includes('jefatura') || (!rol && !rolId && window.location.pathname.endsWith('dashboard_gerencial.html'));
+}
+window.esUsuarioJefeTI = esUsuarioJefeTI;
+
+function actualizarContadorSeleccionados() {
+    const checkboxes = document.querySelectorAll('.ticket-checkbox:checked');
+    const totalVisibles = document.querySelectorAll('.ticket-checkbox');
+    const count = checkboxes.length;
+
+    const countEl = document.getElementById('countSeleccionados');
+    if (countEl) {
+        countEl.textContent = count;
+    }
+
+    const btnEliminar = document.getElementById('btnEliminarTickets');
+    if (btnEliminar) {
+        if (count > 0) {
+            btnEliminar.classList.remove('d-none');
+        } else {
+            btnEliminar.classList.add('d-none');
+        }
+    }
+
+    const checkAll = document.getElementById('checkAllTickets');
+    if (checkAll) {
+        checkAll.checked = (totalVisibles.length > 0 && checkboxes.length === totalVisibles.length);
+        checkAll.indeterminate = (count > 0 && count < totalVisibles.length);
+    }
+}
+window.actualizarContadorSeleccionados = actualizarContadorSeleccionados;
+
+async function ejecutarEliminacionMasivaTickets() {
+    const checkboxes = document.querySelectorAll('.ticket-checkbox:checked');
+    const ticketIds = Array.from(checkboxes).map(cb => parseInt(cb.value, 10)).filter(id => !isNaN(id));
+
+    if (ticketIds.length === 0) {
+        alert('Por favor selecciona al menos un ticket para eliminar.');
+        return;
+    }
+
+    const confirmacion = window.confirm(`¿Estás seguro de eliminar ${ticketIds.length} tickets? Esta acción es irreversible.`);
+    if (!confirmacion) return;
+
+    const btnEliminar = document.getElementById('btnEliminarTickets');
+    if (btnEliminar) {
+        btnEliminar.disabled = true;
+        btnEliminar.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Eliminando...';
+    }
+
+    try {
+        const token = localStorage.getItem('helpstream_token');
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const endpoint = ENDPOINTS.TICKETS_BULK || `${API_URL}/tickets/bulk`;
+        const response = await fetch(endpoint, {
+            method: 'DELETE',
+            headers: headers,
+            body: JSON.stringify({ ticket_ids: ticketIds })
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            const errorMsg = data.detail || 'Ocurrió un error al eliminar los tickets.';
+            alert(errorMsg);
+            return;
+        }
+
+        alert(data.mensaje || `Se eliminaron ${ticketIds.length} tickets exitosamente.`);
+
+        // Recargar la tabla y métricas del dashboard gerencial
+        await cargarReportesGerenciales();
+    } catch (err) {
+        console.error('Error en eliminación masiva:', err);
+        alert(err.message || 'Error de conexión con el servidor al intentar eliminar los tickets.');
+    } finally {
+        if (btnEliminar) {
+            btnEliminar.disabled = false;
+            btnEliminar.innerHTML = '<i class="bi bi-trash"></i> Eliminar Seleccionados (<span id="countSeleccionados">0</span>)';
+        }
+        actualizarContadorSeleccionados();
+    }
+}
+window.ejecutarEliminacionMasivaTickets = ejecutarEliminacionMasivaTickets;
 
 function renderizarTablaReportes(tickets) {
     const tbody = document.getElementById('tablaReportesBody');
@@ -2233,12 +2357,20 @@ function renderizarTablaReportes(tickets) {
 
     tbody.innerHTML = '';
     if (tickets.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No se encontraron tickets con los filtros seleccionados.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">No se encontraron tickets con los filtros seleccionados.</td></tr>';
+        actualizarContadorSeleccionados();
         return;
     }
 
+    const esJefe = esUsuarioJefeTI();
+
     tickets.forEach(t => {
         const tr = document.createElement('tr');
+
+        // Celda checkbox individual exclusiva para Jefe de TI
+        const celdaCheckbox = esJefe 
+            ? `<td class="text-center"><input type="checkbox" class="ticket-checkbox form-check-input" value="${t.id}"></td>`
+            : `<td></td>`;
 
         // Estado SLA Badge (Regla de Tercios HU18)
         let badgeSlaHtml = '';
@@ -2325,6 +2457,7 @@ function renderizarTablaReportes(tickets) {
         const ubicacionStr = t.piso && t.piso !== '-' ? `${t.sede} (${t.piso})` : t.sede;
 
         tr.innerHTML = `
+            ${celdaCheckbox}
             <td class="fw-bold" style="color: var(--admin-anthracite);">#${t.id}</td>
             <td>
                 <div class="fw-semibold">${t.solicitante || 'Usuario'}</div>
@@ -2347,6 +2480,8 @@ function renderizarTablaReportes(tickets) {
 
         tbody.appendChild(tr);
     });
+
+    actualizarContadorSeleccionados();
 }
 
 function abrirModalAuditoria(ticketId) {

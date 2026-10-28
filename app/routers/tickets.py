@@ -303,3 +303,40 @@ def get_user_tickets(usuario_id: int, skip: int = 0, limit: int = 100, db: Sessi
         tickets.append(formatear_ticket_response(db, t, usuario=u))
     return tickets
 
+
+@router.delete("/bulk", status_code=status.HTTP_200_OK)
+def bulk_delete_tickets(
+    payload: schemas.BulkDeleteRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Eliminación masiva de tickets (Bulk Delete / Purga Masiva).
+    Elimina de la base de datos todos los tickets cuyos IDs coincidan con la lista proporcionada.
+    Retorna un mensaje de éxito con la cantidad de tickets eliminados.
+    """
+    if not payload.ticket_ids:
+        return {
+            "mensaje": "No se proporcionaron IDs de tickets para eliminar.",
+            "eliminados": 0
+        }
+
+    try:
+        deleted_count = (
+            db.query(models.Ticket)
+            .filter(models.Ticket.id.in_(payload.ticket_ids))
+            .delete(synchronize_session=False)
+        )
+        db.commit()
+
+        return {
+            "mensaje": f"Se eliminaron {deleted_count} tickets exitosamente.",
+            "eliminados": deleted_count
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al eliminar tickets: {str(e)}"
+        )
+
+

@@ -136,6 +136,9 @@ class TicketUpdateEstado(BaseModel):
     estado: str
     comentario_tecnico: Optional[str] = None
 
+class BulkDeleteRequest(BaseModel):
+    ticket_ids: List[int]
+
 class TicketResponse(TicketBase):
     id: int
     estado: str

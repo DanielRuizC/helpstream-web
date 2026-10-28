@@ -365,19 +365,25 @@
 
             <!-- Tabla Consolidada de Reportes de Jefatura -->
             <div class="table-container mb-5">
-                <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
                     <h5 class="fw-bold mb-0" style="color: var(--admin-anthracite);">
                         <i class="bi bi-table me-2 text-warning"></i> Reporte Consolidado de Incidencias & Cumplimiento
                         de SLA
                     </h5>
-                    <span class="badge bg-secondary bg-opacity-10 text-secondary" id="totalFiltradosBadge">Mostrando 0
-                        tickets</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <button id="btnEliminarTickets" class="btn btn-danger btn-sm d-none fw-bold"><i class="bi bi-trash"></i> Eliminar Seleccionados (<span id="countSeleccionados">0</span>)</button>
+                        <span class="badge bg-secondary bg-opacity-10 text-secondary" id="totalFiltradosBadge">Mostrando 0
+                            tickets</span>
+                    </div>
                 </div>
 
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0" id="tablaReportesGerencial">
                         <thead>
                             <tr>
+                                <th style="width: 40px;" class="text-center">
+                                    <input type="checkbox" id="checkAllTickets" class="form-check-input">
+                                </th>
                                 <th># ID</th>
                                 <th>Solicitante & Contacto</th>
                                 <th>Sede / Ubicación</th>
@@ -390,7 +396,7 @@
                         </thead>
                         <tbody id="tablaReportesBody">
                             <tr>
-                                <td colspan="8" class="text-center py-4 text-muted">
+                                <td colspan="9" class="text-center py-4 text-muted">
                                     <div class="spinner-border spinner-border-sm text-warning me-2" role="status"></div>
                                     Cargando datos ejecutivos desde la API...
                                 </td>
