@@ -69,6 +69,7 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
         if not response or not response.text:
             raise ValueError("Respuesta vacía de Gemini")
 
+        print("[IA Analyzer] Respuesta recibida de Gemini exitosamente.", flush=True)
         raw_text = response.text.strip()
         cleaned_text = raw_text.replace("```json", "").replace("```", "").replace("`", "").strip()
         data = json.loads(cleaned_text)
@@ -85,6 +86,7 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
             "criticidad_urgencia": criticidad
         }
     except Exception as e_gemini:
+        print(f"[IA Analyzer] Falló Gemini ({e_gemini}). Activando fallback Groq...", flush=True)
         logger.warning(f"[Gemini AI Fallback Triggered] Falla en Gemini ({e_gemini}). Activando fallback Groq Llama3...")
         try:
             global groq_client
@@ -109,6 +111,7 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
                 temperature=0.1
             )
 
+            print("[IA Analyzer] Respuesta recibida de Groq exitosamente.", flush=True)
             raw_fallback = fallback_response.choices[0].message.content.strip()
             cleaned_fallback = raw_fallback.replace("```json", "").replace("```", "").replace("`", "").strip()
             data_fallback = json.loads(cleaned_fallback)
@@ -125,6 +128,7 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
                 "criticidad_urgencia": criticidad
             }
         except Exception as e_groq:
+            print(f"[IA Analyzer ERROR] Falló el servicio Groq de contingencia: {e_groq}", flush=True)
             logger.error(f"[Groq AI Fallback Error] Falló el servicio Groq de contingencia: {e_groq}")
             return {"palabras_clave": [], "criticidad": "Medio", "criticidad_urgencia": "Medio"}
 

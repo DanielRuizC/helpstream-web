@@ -141,9 +141,10 @@ async def create_ticket(
             usuario_id = 1
 
     try:
+        print("0. Iniciando procesamiento de IA para el ticket...", flush=True)
         # Análisis inteligente con Gemini AI (palabras clave y criticidad)
         respuesta_ia = await analizar_ticket_ia(descripcion)
-        print("1. IA respondió con éxito. Respuesta cruda:", respuesta_ia)
+        print("1. IA respondió con éxito. Respuesta cruda:", respuesta_ia, flush=True)
 
         palabras_clave_ia = respuesta_ia.get("palabras_clave", [])
         criticidad_ia = respuesta_ia.get("criticidad_urgencia") or respuesta_ia.get("criticidad", "Medio")
@@ -179,7 +180,7 @@ async def create_ticket(
         else:
             criticidad = "Medio"
 
-        print("2. JSON de la IA parseado correctamente. Criticidad asignada:", criticidad)
+        print("2. JSON de la IA parseado correctamente. Criticidad asignada:", criticidad, flush=True)
 
         # Guardar palabras clave estructuradas relacionadas al ticket en la base de datos
         palabras_clave_db = ", ".join(palabras_clave_ia) if palabras_clave_ia else ""
@@ -195,15 +196,18 @@ async def create_ticket(
             palabras_clave=palabras_clave_db
         )
         db.add(db_ticket)
-        print("3. Intentando hacer db.commit() en Supabase...")
+        print("3. Intentando hacer db.commit() en Supabase...", flush=True)
         db.commit()
+        print("3.1 db.commit() completado. Ejecutando db.refresh()...", flush=True)
         db.refresh(db_ticket)
-        print("4. Commit exitoso. Retornando respuesta a la App móvil.")
+        print("4. Commit exitoso. Retornando respuesta a la App móvil.", flush=True)
 
-        return formatear_ticket_response(db, db_ticket)
+        respuesta_formateada = formatear_ticket_response(db, db_ticket)
+        print("5. Formateo de respuesta completado con éxito. Enviando HTTP 201.", flush=True)
+        return respuesta_formateada
     except Exception as e:
         db.rollback()
-        print(f"ERROR CRÍTICO AL PROCESAR IA O BD: {str(e)}")
+        print(f"ERROR CRÍTICO AL PROCESAR IA O BD: {str(e)}", flush=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error crítico al procesar IA o BD: {str(e)}"
