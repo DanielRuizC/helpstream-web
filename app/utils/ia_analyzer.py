@@ -98,7 +98,7 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
 
     try:
         api_key = os.environ.get("GEMINI_API_KEY", "")
-        url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent'
+        url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent'
         headers = {
             'Content-Type': 'application/json',
             'x-goog-api-key': api_key
