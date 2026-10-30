@@ -54,10 +54,12 @@ async def fallback_groq(descripcion: str) -> dict:
                 {
                     "role": "system",
                     "content": (
-                        "Eres un analista de soporte técnico TI. Analiza esta descripción y extrae de 2 a 5 palabras clave técnicas. "
-                        "El campo criticidad_urgencia DEBE ser EXACTAMENTE uno de estos cuatro valores, sin alterar el género: 'Crítico', 'Alto', 'Medio', 'Bajo'. "
-                        "Devuelve ÚNICAMENTE un objeto JSON válido con la estructura: "
-                        "{\"palabras_clave\": [\"...\"], \"criticidad_urgencia\": \"...\"} sin bloques de código markdown ni texto adicional."
+                        'Eres un analista ITSM. Extrae de 2 a 5 palabras clave técnicas y asigna la criticidad_urgencia bajo estas reglas estrictas: '
+                        '1. Crítico: Caída total de servicios core (red, servidores) que paraliza la sede. '
+                        '2. Alto: Falla que afecta a múltiples usuarios simultáneamente (ej. impresoras compartidas, sistemas masivos). '
+                        '3. Medio: Falla individual que afecta a un solo usuario limitando su trabajo (ej. periféricos, PC personal). '
+                        '4. Bajo: Instalaciones, actualizaciones o requerimientos rutinarios sin impacto inmediato. '
+                        'Devuelve ÚNICAMENTE un JSON: {"palabras_clave": ["..."], "criticidad_urgencia": "Valor"}.'
                     )
                 },
                 {"role": "user", "content": descripcion}
@@ -105,11 +107,13 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
         }
 
         prompt = (
-            f"Eres un analista de soporte técnico TI. Analiza esta descripción y extrae de 2 a 5 palabras clave técnicas. "
-            f"El campo criticidad_urgencia DEBE ser EXACTAMENTE uno de estos cuatro valores, sin alterar el género: 'Crítico', 'Alto', 'Medio', 'Bajo'. "
-            f"Devuelve ÚNICAMENTE un objeto JSON válido con la estructura: "
-            f'{{"palabras_clave": ["..."], "criticidad_urgencia": "..."}} sin bloques de código markdown. '
-            f"Descripción: {descripcion.strip()}"
+            f'Eres un analista ITSM. Extrae de 2 a 5 palabras clave técnicas y asigna la criticidad_urgencia bajo estas reglas estrictas: '
+            f'1. Crítico: Caída total de servicios core (red, servidores) que paraliza la sede. '
+            f'2. Alto: Falla que afecta a múltiples usuarios simultáneamente (ej. impresoras compartidas, sistemas masivos). '
+            f'3. Medio: Falla individual que afecta a un solo usuario limitando su trabajo (ej. periféricos, PC personal). '
+            f'4. Bajo: Instalaciones, actualizaciones o requerimientos rutinarios sin impacto inmediato. '
+            f'Devuelve ÚNICAMENTE un JSON: {{"palabras_clave": ["..."], "criticidad_urgencia": "Valor"}}. '
+            f'Descripción: {descripcion.strip()}'
         )
 
         payload = {
