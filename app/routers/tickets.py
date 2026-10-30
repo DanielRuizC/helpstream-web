@@ -140,60 +140,74 @@ async def create_ticket(
         except (ValueError, TypeError):
             usuario_id = 1
 
-    # Análisis inteligente con Gemini AI (palabras clave y criticidad)
-    ia_analisis = await analizar_ticket_ia(descripcion)
-    palabras_clave_ia = ia_analisis.get("palabras_clave", [])
-    criticidad_ia = ia_analisis.get("criticidad_urgencia") or ia_analisis.get("criticidad", "Medio")
+    try:
+        # Análisis inteligente con Gemini AI (palabras clave y criticidad)
+        respuesta_ia = await analizar_ticket_ia(descripcion)
+        print("1. IA respondió con éxito. Respuesta cruda:", respuesta_ia)
 
-    # Si el usuario seleccionó una criticidad específica en el modal, se respeta; sino, se usa IA
-    if not criticidad:
-        criticidad = criticidad_ia
+        palabras_clave_ia = respuesta_ia.get("palabras_clave", [])
+        criticidad_ia = respuesta_ia.get("criticidad_urgencia") or respuesta_ia.get("criticidad", "Medio")
 
-    # Filtro de Seguridad: Mapeo para forzar la normalización estricta antes del db.commit()
-    MAPEO_CRITICIDAD = {
-        "alta": "Alto",
-        "alto": "Alto",
-        "media": "Medio",
-        "medio": "Medio",
-        "baja": "Bajo",
-        "bajo": "Bajo",
-        "crítica": "Crítico",
-        "critica": "Crítico",
-        "crítico": "Crítico",
-        "critico": "Crítico",
-    }
-    crit_key = str(criticidad).strip().lower() if criticidad else "medio"
-    if crit_key in MAPEO_CRITICIDAD:
-        criticidad = MAPEO_CRITICIDAD[crit_key]
-    elif crit_key.startswith("alt"):
-        criticidad = "Alto"
-    elif crit_key.startswith("med"):
-        criticidad = "Medio"
-    elif crit_key.startswith("baj"):
-        criticidad = "Bajo"
-    elif crit_key.startswith("cr"):
-        criticidad = "Crítico"
-    else:
-        criticidad = "Medio"
+        # Si el usuario seleccionó una criticidad específica en el modal, se respeta; sino, se usa IA
+        if not criticidad:
+            criticidad = criticidad_ia
 
-    # Guardar palabras clave estructuradas relacionadas al ticket en la base de datos
-    palabras_clave_db = ", ".join(palabras_clave_ia) if palabras_clave_ia else ""
+        # Filtro de Seguridad: Mapeo para forzar la normalización estricta antes del db.commit()
+        MAPEO_CRITICIDAD = {
+            "alta": "Alto",
+            "alto": "Alto",
+            "media": "Medio",
+            "medio": "Medio",
+            "baja": "Bajo",
+            "bajo": "Bajo",
+            "crítica": "Crítico",
+            "critica": "Crítico",
+            "crítico": "Crítico",
+            "critico": "Crítico",
+        }
+        crit_key = str(criticidad).strip().lower() if criticidad else "medio"
+        if crit_key in MAPEO_CRITICIDAD:
+            criticidad = MAPEO_CRITICIDAD[crit_key]
+        elif crit_key.startswith("alt"):
+            criticidad = "Alto"
+        elif crit_key.startswith("med"):
+            criticidad = "Medio"
+        elif crit_key.startswith("baj"):
+            criticidad = "Bajo"
+        elif crit_key.startswith("cr"):
+            criticidad = "Crítico"
+        else:
+            criticidad = "Medio"
 
-    db_ticket = models.Ticket(
-        usuario_id=usuario_id,
-        descripcion=descripcion,
-        evidencia_url=evidencia_url,
-        criticidad=criticidad,
-        correo_solicitante=correo,
-        sede=sede,
-        piso=piso,
-        palabras_clave=palabras_clave_db
-    )
-    db.add(db_ticket)
-    db.commit()
-    db.refresh(db_ticket)
+        print("2. JSON de la IA parseado correctamente. Criticidad asignada:", criticidad)
 
-    return formatear_ticket_response(db, db_ticket)
+        # Guardar palabras clave estructuradas relacionadas al ticket en la base de datos
+        palabras_clave_db = ", ".join(palabras_clave_ia) if palabras_clave_ia else ""
+
+        db_ticket = models.Ticket(
+            usuario_id=usuario_id,
+            descripcion=descripcion,
+            evidencia_url=evidencia_url,
+            criticidad=criticidad,
+            correo_solicitante=correo,
+            sede=sede,
+            piso=piso,
+            palabras_clave=palabras_clave_db
+        )
+        db.add(db_ticket)
+        print("3. Intentando hacer db.commit() en Supabase...")
+        db.commit()
+        db.refresh(db_ticket)
+        print("4. Commit exitoso. Retornando respuesta a la App móvil.")
+
+        return formatear_ticket_response(db, db_ticket)
+    except Exception as e:
+        db.rollback()
+        print(f"ERROR CRÍTICO AL PROCESAR IA O BD: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error crítico al procesar IA o BD: {str(e)}"
+        )
 
 @router.get("/", response_model=List[schemas.TicketResponse])
 def read_tickets(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
