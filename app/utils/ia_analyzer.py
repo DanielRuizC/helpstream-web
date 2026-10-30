@@ -98,8 +98,11 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
 
     try:
         api_key = os.environ.get("GEMINI_API_KEY", "")
-        gemini_model = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{gemini_model}:generateContent?key={api_key}"
+        url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent'
+        headers = {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': api_key
+        }
 
         prompt = (
             f"Eres un analista de soporte técnico TI. Analiza esta descripción y extrae de 2 a 5 palabras clave técnicas. "
@@ -120,7 +123,7 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
         }
 
         # Forzar un límite estricto de 5 segundos para prevenir "Silent Hangs"
-        response = httpx.post(url, json=payload, timeout=5.0)
+        response = httpx.post(url, json=payload, headers=headers, timeout=5.0)
         response.raise_for_status()
 
         data_res = response.json()
