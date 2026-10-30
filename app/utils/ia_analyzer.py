@@ -89,8 +89,8 @@ async def fallback_groq(descripcion: str) -> dict:
 
 async def analizar_ticket_ia(descripcion: str) -> dict:
     """
-    Analiza la descripción del ticket utilizando Gemini AI con un timeout estricto de 5 segundos.
-    Si Gemini tarda más de 5s (httpx.TimeoutException) o da error HTTP, activa inmediatamente el fallback con Groq Llama3.
+    Analiza la descripción del ticket utilizando Gemini AI con un timeout de 10 segundos.
+    Si Gemini tarda más de 10s (httpx.TimeoutException) o da error HTTP, activa inmediatamente el fallback con Groq Llama3.
     Si ambos fallan, retorna como respaldo seguro: {"palabras_clave": [], "criticidad": "Medio", "criticidad_urgencia": "Medio"}.
     """
     if not descripcion or not descripcion.strip():
@@ -98,7 +98,7 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
 
     try:
         api_key = os.environ.get("GEMINI_API_KEY", "")
-        url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent'
+        url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent'
         headers = {
             'Content-Type': 'application/json',
             'x-goog-api-key': api_key
@@ -122,8 +122,8 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
             ]
         }
 
-        # Forzar un límite estricto de 5 segundos para prevenir "Silent Hangs"
-        response = httpx.post(url, json=payload, headers=headers, timeout=5.0)
+        # Límite de 10 segundos para dar margen a TLS y generación de tokens
+        response = httpx.post(url, json=payload, headers=headers, timeout=10.0)
         response.raise_for_status()
 
         data_res = response.json()
@@ -152,8 +152,8 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
             "criticidad_urgencia": criticidad
         }
     except httpx.TimeoutException as e_timeout:
-        print(f"[IA Analyzer] Timeout de 5s excedido en Gemini ({e_timeout}). Cortando conexión y activando fallback Groq Llama3...", flush=True)
-        logger.warning(f"[Gemini AI Timeout] Gemini tardó más de 5 segundos ({e_timeout}). Activando fallback Groq Llama3...")
+        print(f"[IA Analyzer] Timeout de 10s excedido en Gemini ({e_timeout}). Cortando conexión y activando fallback Groq Llama3...", flush=True)
+        logger.warning(f"[Gemini AI Timeout] Gemini tardó más de 10 segundos ({e_timeout}). Activando fallback Groq Llama3...")
         return await fallback_groq(descripcion)
     except (httpx.HTTPStatusError, httpx.HTTPError) as e_http:
         print(f"[IA Analyzer] Error HTTP en Gemini ({e_http}). Activando fallback Groq Llama3...", flush=True)
