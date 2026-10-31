@@ -78,15 +78,17 @@ async def fallback_groq(descripcion: str) -> dict:
         raw_crit = data_fallback.get("criticidad_urgencia") or data_fallback.get("criticidad", "Medio")
         criticidad = normalizar_criticidad(raw_crit)
 
+        palabras_limpias = [str(p).strip().lower() for p in palabras if str(p).strip()]
         return {
-            "palabras_clave": [str(p).strip().lower() for p in palabras if str(p).strip()],
+            "palabras_clave": palabras_limpias,
+            "etiquetas_ia": palabras_limpias,
             "criticidad": criticidad,
             "criticidad_urgencia": criticidad
         }
     except Exception as e_groq:
         print(f"[IA Analyzer ERROR] Falló el servicio Groq de contingencia: {e_groq}", flush=True)
         logger.error(f"[Groq AI Fallback Error] Falló el servicio Groq de contingencia: {e_groq}")
-        return {"palabras_clave": [], "criticidad": "Medio", "criticidad_urgencia": "Medio"}
+        return {"palabras_clave": [], "etiquetas_ia": [], "criticidad": "Medio", "criticidad_urgencia": "Medio"}
 
 
 async def analizar_ticket_ia(descripcion: str) -> dict:
@@ -96,7 +98,7 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
     Si ambos fallan, retorna como respaldo seguro: {"palabras_clave": [], "criticidad": "Medio", "criticidad_urgencia": "Medio"}.
     """
     if not descripcion or not descripcion.strip():
-        return {"palabras_clave": [], "criticidad": "Medio", "criticidad_urgencia": "Medio"}
+        return {"palabras_clave": [], "etiquetas_ia": [], "criticidad": "Medio", "criticidad_urgencia": "Medio"}
 
     try:
         api_key = os.environ.get("GEMINI_API_KEY", "")
@@ -150,8 +152,10 @@ async def analizar_ticket_ia(descripcion: str) -> dict:
         raw_crit = data.get("criticidad_urgencia") or data.get("criticidad", "Medio")
         criticidad = normalizar_criticidad(raw_crit)
 
+        palabras_limpias = [str(p).strip().lower() for p in palabras if str(p).strip()]
         return {
-            "palabras_clave": [str(p).strip().lower() for p in palabras if str(p).strip()],
+            "palabras_clave": palabras_limpias,
+            "etiquetas_ia": palabras_limpias,
             "criticidad": criticidad,
             "criticidad_urgencia": criticidad
         }
@@ -199,6 +203,10 @@ def analizar_ticket_heuristico(texto: str) -> dict:
             
     return {
         "palabras_clave": palabras,
+        "etiquetas_ia": palabras,
         "criticidad": criticidad,
         "criticidad_urgencia": criticidad
     }
+
+# Alias para compatibilidad con el endpoint de tickets y bots
+analizar_ticket_con_gemini = analizar_ticket_ia

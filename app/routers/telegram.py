@@ -1,7 +1,8 @@
 import logging
 from typing import Dict, Any
 from fastapi import APIRouter, Request, BackgroundTasks, status, HTTPException
-from ..services.telegram_service import procesar_update_telegram
+from ..services.telegram_service import procesar_update_telegram, insertar_ticket
+from ..utils.ia_analyzer import analizar_ticket_con_gemini, analizar_ticket_ia
 
 logger = logging.getLogger("helpstream.telegram.router")
 

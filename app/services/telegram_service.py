@@ -6,6 +6,11 @@ from datetime import datetime
 import httpx
 from ..utils.supabase_client import get_supabase_client
 from ..timezone import convertir_a_lima
+from ..utils.ia_analyzer import (
+    analizar_ticket_ia,
+    analizar_ticket_con_gemini,
+    normalizar_criticidad
+)
 
 logger = logging.getLogger("helpstream.telegram")
 if not logger.handlers:
@@ -223,7 +228,7 @@ def eliminar_sesion(chat_id: int) -> bool:
         return False
 
 
-def insertar_ticket(
+async def insertar_ticket(
     correo: str,
     descripcion: str,
     sede: str,
@@ -232,6 +237,8 @@ def insertar_ticket(
     """
     Inserta el nuevo ticket en la tabla tickets de Supabase.
     Asocia el usuario_id si el correo coincide con un registro en la tabla usuarios.
+    Analiza la descripción del incidente mediante Gemini AI para asignar la criticidad
+    correcta y extraer las palabras clave (etiquetas_ia).
     """
     try:
         supabase = get_supabase_client()
@@ -245,6 +252,24 @@ def insertar_ticket(
         except Exception as e_user:
             logger.warning(f"[Supabase] No se pudo resolver usuario_id por correo: {e_user}")
 
+        # Análisis inteligente con IA (Gemini) previo a la inserción
+        criticidad = "Medio"
+        palabras_clave = "telegram, ticket, soporte"
+        try:
+            logger.info(f"[Telegram IA] Analizando incidente con IA (Gemini) para {correo}...")
+            analisis_ia = await analizar_ticket_con_gemini(descripcion)
+            raw_crit = analisis_ia.get("criticidad_urgencia") or analisis_ia.get("criticidad", "Medio")
+            criticidad = normalizar_criticidad(raw_crit)
+
+            etiquetas_ia = analisis_ia.get("palabras_clave") or analisis_ia.get("etiquetas_ia") or []
+            if isinstance(etiquetas_ia, list) and etiquetas_ia:
+                palabras_clave = ", ".join(str(p).strip() for p in etiquetas_ia if str(p).strip())
+            elif isinstance(etiquetas_ia, str) and etiquetas_ia.strip():
+                palabras_clave = etiquetas_ia.strip()
+            logger.info(f"[Telegram IA] Análisis completado exitosamente -> Criticidad: {criticidad} | Palabras clave: {palabras_clave}")
+        except Exception as e_ia:
+            logger.error(f"[Telegram IA Error] Error al analizar ticket con Gemini ({e_ia}). Se aplican valores por defecto.")
+
         ticket_payload = {
             "usuario_id": usuario_id,
             "correo_solicitante": correo.strip().lower(),
@@ -252,9 +277,9 @@ def insertar_ticket(
             "sede": sede.strip(),
             "piso": (piso or "No especificado").strip(),
             "estado": "Abierto",
-            "criticidad": "Medio",
+            "criticidad": criticidad,
             "fecha_creacion": datetime.utcnow().isoformat(),
-            "palabras_clave": "telegram, ticket, soporte"
+            "palabras_clave": palabras_clave
         }
 
         res = supabase.table("tickets").insert(ticket_payload).execute()
@@ -718,7 +743,7 @@ async def _procesar_callback_query(callback: Dict[str, Any]) -> None:
 
         else:
             # Sede distinta a San Isidro: Registrar ticket con piso 'No especificado'
-            ticket_creado = insertar_ticket(
+            ticket_creado = await insertar_ticket(
                 correo=correo_usuario,
                 descripcion=descripcion,
                 sede=sede_seleccionada,
@@ -763,7 +788,7 @@ async def _procesar_callback_query(callback: Dict[str, Any]) -> None:
         sede = datos_temporales.get("sede", "San Isidro")
 
         # Insertar ticket con sede y piso seleccionados
-        ticket_creado = insertar_ticket(
+        ticket_creado = await insertar_ticket(
             correo=correo_usuario,
             descripcion=descripcion,
             sede=sede,
