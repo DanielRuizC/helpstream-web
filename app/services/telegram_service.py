@@ -232,13 +232,17 @@ async def insertar_ticket(
     correo: str,
     descripcion: str,
     sede: str,
-    piso: str = "No especificado"
+    piso: str = "No especificado",
+    chat_id: Optional[int] = None
 ) -> Optional[Dict[str, Any]]:
     """
     Inserta el nuevo ticket en la tabla tickets de Supabase.
     Asocia el usuario_id si el correo coincide con un registro en la tabla usuarios.
     Analiza la descripción del incidente mediante Gemini AI para asignar la criticidad
     correcta y extraer las palabras clave (etiquetas_ia).
+
+    Maneja excepciones durante la inserción en BD para evitar falsos positivos hacia el usuario.
+    Si se proporciona chat_id, notifica el resultado directamente y gestiona la sesión.
     """
     try:
         supabase = get_supabase_client()
@@ -252,12 +256,18 @@ async def insertar_ticket(
         except Exception as e_user:
             logger.warning(f"[Supabase] No se pudo resolver usuario_id por correo: {e_user}")
 
+        # Truncamiento defensivo preventivo para no sobrepasar el límite de BD
+        descripcion_limpia = (descripcion or "").strip()
+        if len(descripcion_limpia) > 250:
+            logger.warning(f"[Telegram] Truncando descripción defensivamente de {len(descripcion_limpia)} a 250 caracteres.")
+            descripcion_limpia = descripcion_limpia[:250].strip()
+
         # Análisis inteligente con IA (Gemini) previo a la inserción
         criticidad = "Medio"
         palabras_clave = "telegram, ticket, soporte"
         try:
             logger.info(f"[Telegram IA] Analizando incidente con IA (Gemini) para {correo}...")
-            analisis_ia = await analizar_ticket_con_gemini(descripcion)
+            analisis_ia = await analizar_ticket_con_gemini(descripcion_limpia)
             raw_crit = analisis_ia.get("criticidad_urgencia") or analisis_ia.get("criticidad", "Medio")
             criticidad = normalizar_criticidad(raw_crit)
 
@@ -273,7 +283,7 @@ async def insertar_ticket(
         ticket_payload = {
             "usuario_id": usuario_id,
             "correo_solicitante": correo.strip().lower(),
-            "descripcion": descripcion.strip(),
+            "descripcion": descripcion_limpia,
             "sede": sede.strip(),
             "piso": (piso or "No especificado").strip(),
             "estado": "Abierto",
@@ -282,11 +292,56 @@ async def insertar_ticket(
             "palabras_clave": palabras_clave
         }
 
-        res = supabase.table("tickets").insert(ticket_payload).execute()
-        logger.info(f"[Supabase] Ticket insertado con éxito para {correo} en sede {sede} ({piso}).")
-        return res.data[0] if (res.data and len(res.data) > 0) else ticket_payload
-    except Exception as e:
-        logger.exception(f"[Supabase] Error al registrar ticket en tickets: {e}")
+        # Ejecución protegida contra la base de datos Supabase
+        try:
+            res = supabase.table("tickets").insert(ticket_payload).execute()
+            if not res.data or len(res.data) == 0:
+                raise RuntimeError("No se obtuvo confirmación de datos al insertar el ticket en Supabase.")
+
+            ticket_data = res.data[0]
+            logger.info(f"[Supabase] Ticket insertado con éxito para {correo} en sede {sede} ({piso}).")
+
+            # El envío de éxito y cierre de sesión SOLO ocurren si el insert finaliza sin errores
+            if chat_id is not None:
+                ticket_id = ticket_data.get("id", "S/N")
+                msg_exito = (
+                    "🎉 *Ticket registrado con éxito*\n\n"
+                    "📋 *Resumen de la Solicitud:*\n"
+                    f"• *Ticket ID:* #{ticket_id}\n"
+                    f"• *Solicitante:* `{correo.strip().lower()}`\n"
+                    f"• *Sede:* {sede.strip()}\n"
+                    f"• *Área/Piso:* {(piso or 'No especificado').strip()}\n"
+                    f"• *Descripción:* {descripcion_limpia}\n\n"
+                    "👨‍💻 Un especialista de TI atenderá tu incidencia a la brevedad.\n\n"
+                    "Escribe */start* para volver al menú principal."
+                )
+                await send_telegram_message(chat_id, msg_exito)
+                eliminar_sesion(chat_id)
+                logger.info(f"[Telegram] Ticket #{ticket_id} registrado exitosamente para chat_id {chat_id}. Sesión cerrada.")
+            return ticket_data
+
+        except Exception as e:
+            print(f"[Supabase Error] Ocurrió un error interno al registrar el ticket: {e}", flush=True)
+            logger.exception(f"[Supabase] Ocurrió un error interno al registrar el ticket: {e}")
+
+            if chat_id is not None:
+                msg_fallo = (
+                    "⚠️ Ocurrió un error interno al registrar el ticket. "
+                    "Por favor, intenta nuevamente más tarde o escribe */start*."
+                )
+                await send_telegram_message(chat_id, msg_fallo)
+
+            return None
+
+    except Exception as e_global:
+        print(f"[Telegram Service Error] Ocurrió un error interno al procesar el ticket: {e_global}", flush=True)
+        logger.exception(f"[Telegram Service] Ocurrió un error interno al procesar el ticket: {e_global}")
+        if chat_id is not None:
+            msg_fallo = (
+                "⚠️ Ocurrió un error interno al registrar el ticket. "
+                "Por favor, intenta nuevamente más tarde o escribe */start*."
+            )
+            await send_telegram_message(chat_id, msg_fallo)
         return None
 
 
@@ -557,7 +612,8 @@ async def _procesar_mensaje_texto(message: Dict[str, Any]) -> None:
     # FLUJO REGISTRAR - PASO: esperando_descripcion
     # ------------------------------------------------------------------------
     elif paso_actual == "esperando_descripcion":
-        if len(texto) < 5:
+        descripcion = texto.strip()
+        if len(descripcion) < 5:
             msg_corta = (
                 "⚠️ La descripción es muy breve.\n"
                 "Por favor, brinda más detalles sobre el problema:"
@@ -565,8 +621,17 @@ async def _procesar_mensaje_texto(message: Dict[str, Any]) -> None:
             await send_telegram_message(chat_id, msg_corta)
             return
 
+        # Validación temprana de longitud máxima permitida en base de datos (VARCHAR 250)
+        if len(descripcion) > 250:
+            msg_largo = (
+                "⚠️ Tu descripción supera el límite de 250 caracteres. "
+                "Por favor, resúmela y envíala nuevamente."
+            )
+            await send_telegram_message(chat_id, msg_largo)
+            return
+
         datos_actuales = sesion.get("datos_temporales") or {}
-        datos_actuales["descripcion"] = texto
+        datos_actuales["descripcion"] = descripcion
 
         actualizar_sesion(chat_id, {
             "datos_temporales": datos_actuales,
@@ -743,28 +808,13 @@ async def _procesar_callback_query(callback: Dict[str, Any]) -> None:
 
         else:
             # Sede distinta a San Isidro: Registrar ticket con piso 'No especificado'
-            ticket_creado = await insertar_ticket(
+            await insertar_ticket(
                 correo=correo_usuario,
                 descripcion=descripcion,
                 sede=sede_seleccionada,
-                piso="No especificado"
+                piso="No especificado",
+                chat_id=chat_id
             )
-            ticket_id = (ticket_creado or {}).get("id", "Generado")
-
-            msg_exito = (
-                "🎉 *Ticket registrado con éxito*\n\n"
-                "📋 *Resumen de la Solicitud:*\n"
-                f"• *Ticket ID:* #{ticket_id}\n"
-                f"• *Solicitante:* `{correo_usuario}`\n"
-                f"• *Sede:* {sede_seleccionada}\n"
-                f"• *Área/Piso:* No especificado\n"
-                f"• *Descripción:* {descripcion}\n\n"
-                "👨‍💻 Un especialista de TI atenderá tu incidencia a la brevedad.\n\n"
-                "Escribe */start* para volver al menú principal."
-            )
-            await send_telegram_message(chat_id, msg_exito)
-            eliminar_sesion(chat_id)
-            logger.info(f"[Telegram] Ticket creado para chat_id {chat_id} en sede {sede_seleccionada}. Sesión cerrada.")
             return
 
     # ========================================================================
@@ -788,28 +838,13 @@ async def _procesar_callback_query(callback: Dict[str, Any]) -> None:
         sede = datos_temporales.get("sede", "San Isidro")
 
         # Insertar ticket con sede y piso seleccionados
-        ticket_creado = await insertar_ticket(
+        await insertar_ticket(
             correo=correo_usuario,
             descripcion=descripcion,
             sede=sede,
-            piso=piso_seleccionado
+            piso=piso_seleccionado,
+            chat_id=chat_id
         )
-        ticket_id = (ticket_creado or {}).get("id", "Generado")
-
-        msg_exito = (
-            "🎉 *Ticket registrado con éxito*\n\n"
-            "📋 *Resumen de la Solicitud:*\n"
-            f"• *Ticket ID:* #{ticket_id}\n"
-            f"• *Solicitante:* `{correo_usuario}`\n"
-            f"• *Sede:* {sede}\n"
-            f"• *Área/Piso:* {piso_seleccionado}\n"
-            f"• *Descripción:* {descripcion}\n\n"
-            "👨‍💻 Un especialista de TI atenderá tu incidencia a la brevedad.\n\n"
-            "Escribe */start* para volver al menú principal."
-        )
-        await send_telegram_message(chat_id, msg_exito)
-        eliminar_sesion(chat_id)
-        logger.info(f"[Telegram] Ticket creado para chat_id {chat_id} en San Isidro ({piso_seleccionado}). Sesión cerrada.")
         return
 
     else:
