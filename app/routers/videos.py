@@ -256,6 +256,50 @@ def get_video_by_id(video_id: int, db: Session = Depends(get_db)):
     )
 
 
+@router.put("/{video_id}", response_model=schemas.VideoRespuesta)
+@router.patch("/{video_id}", response_model=schemas.VideoRespuesta)
+def update_video(
+    video_id: int,
+    video_update: schemas.VideoUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Actualiza la información de un video tutorial existente en la base de datos (Supabase).
+    Campos editables: titulo, descripcion y palabras_clave (tags).
+    """
+    video = db.query(models.VideoTutorial).filter(models.VideoTutorial.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video tutorial no encontrado")
+
+    if video_update.titulo is not None:
+        video.titulo = video_update.titulo.strip()
+
+    if video_update.descripcion is not None:
+        video.descripcion = video_update.descripcion.strip()
+
+    tags_val = video_update.palabras_clave if video_update.palabras_clave is not None else video_update.tags
+    if tags_val is not None:
+        video.tags = tags_val.strip().lower()
+
+    db.commit()
+    db.refresh(video)
+
+    client = get_supabase_client()
+    storage = client.storage
+    url_firmada = generar_url_firmada(storage, video.url_video, 3600)
+
+    return schemas.VideoRespuesta(
+        id=video.id,
+        titulo=video.titulo,
+        descripcion=video.descripcion,
+        url_video=url_firmada,
+        tags=video.tags,
+        fecha_subida=video.fecha_subida,
+        reproducciones=getattr(video, "reproducciones", 0) or 0,
+        casos_resueltos=getattr(video, "casos_resueltos", 0) or 0
+    )
+
+
 @router.delete("/{video_id}")
 def delete_video(video_id: int, db: Session = Depends(get_db)):
     """Elimina un video tutorial y su archivo asociado en Supabase Storage."""

@@ -165,6 +165,12 @@ class VideoCreate(BaseModel):
     url_video: str
     tags: str
 
+class VideoUpdate(BaseModel):
+    titulo: Optional[str] = None
+    descripcion: Optional[str] = None
+    palabras_clave: Optional[str] = None
+    tags: Optional[str] = None
+
 class VideoRespuesta(BaseModel):
     id: int
     titulo: str

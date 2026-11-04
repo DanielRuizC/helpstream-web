@@ -278,7 +278,7 @@
                                     <th style="min-width: 220px;">Palabras Clave</th>
                                     <th class="text-center" style="min-width: 140px;">Reproducciones</th>
                                     <th class="text-center" style="min-width: 150px;">Tickets Resueltos</th>
-                                    <th class="text-center" style="min-width: 120px;">Acciones</th>
+                                    <th class="text-center" style="min-width: 170px;">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody id="videosTableBody">
@@ -596,6 +596,63 @@
                                     data-bs-dismiss="modal">Cancelar</button>
                                 <button type="submit" class="btn btn-primary fw-bold px-4 py-2" id="btnSubmitVideo">
                                     <i class="bi bi-cloud-upload me-2"></i> Publicar en Base de Conocimiento
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Editar Video Tutorial -->
+    <div class="modal fade" id="modalEditarVideo" tabindex="-1" aria-labelledby="modalEditarVideoLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 14px;">
+                <div class="modal-header bg-dark text-white py-3 px-4" style="border-radius: 14px 14px 0 0;">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-pencil-square fs-5 text-warning"></i>
+                        <h5 class="modal-title fw-bold mb-0" id="modalEditarVideoLabel">Editar Video Tutorial</h5>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form id="formEditarVideo">
+                        <input type="hidden" id="editVideoId">
+                        <div class="row g-4">
+                            <!-- Título -->
+                            <div class="col-12">
+                                <label for="editTituloVideo" class="form-label fw-bold">Título del Tutorial <span
+                                        class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="editTituloVideo"
+                                    placeholder="Ej: Cómo sellar fuga en válvula 4" required>
+                            </div>
+                            <!-- Descripción -->
+                            <div class="col-12">
+                                <label for="editDescripcionVideo" class="form-label fw-bold">Descripción del
+                                    Procedimiento <span class="text-danger">*</span></label>
+                                <textarea class="form-control" id="editDescripcionVideo" rows="3"
+                                    placeholder="Describe brevemente las herramientas necesarias y pasos de seguridad..."
+                                    required></textarea>
+                            </div>
+                            <!-- Tags / Palabras Clave -->
+                            <div class="col-12">
+                                <label for="editTagsVideo" class="form-label fw-bold">Palabras Clave (Tags / Hashtags)
+                                    <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="editTagsVideo"
+                                    placeholder="caldera, fuga, valvula, presion, agua" required>
+                                <div class="form-text">
+                                    <i class="bi bi-info-circle"></i> Separa las palabras clave por comas. El motor
+                                    predictivo las procesará como etiquetas para sugerir el video en incidentes.
+                                </div>
+                            </div>
+                            <div class="col-12 mt-4 pt-3 border-top d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-light px-3"
+                                    data-bs-dismiss="modal">Cancelar</button>
+                                <button type="submit" class="btn btn-warning fw-bold px-4 py-2 text-dark" id="btnSubmitEditarVideo">
+                                    <i class="bi bi-check-circle-fill me-2"></i> Guardar Cambios
                                 </button>
                             </div>
                         </div>

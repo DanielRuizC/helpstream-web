@@ -1639,6 +1639,7 @@ async function guardarGestion() {
 let allVideosTutoriales = [];
 let modalCargarVideoInstance = null;
 let modalVerVideoInstance = null;
+let modalEditarVideoInstance = null;
 
 function escaparHTML(texto) {
     if (!texto) return '';
@@ -1661,6 +1662,20 @@ function inicializarModuloVideos() {
         modalVerVideoInstance = new bootstrap.Modal(modalVerEl);
         modalVerEl.addEventListener('hidden.bs.modal', () => {
             cerrarModalVideo();
+        });
+    }
+
+    const modalEditarEl = document.getElementById('modalEditarVideo');
+    if (modalEditarEl && typeof bootstrap !== 'undefined') {
+        modalEditarVideoInstance = new bootstrap.Modal(modalEditarEl);
+    }
+
+    // Configurar listener para el formulario de edición de Video
+    const formEditarVideoEl = document.getElementById('formEditarVideo');
+    if (formEditarVideoEl) {
+        formEditarVideoEl.addEventListener('submit', async function (event) {
+            event.preventDefault();
+            await guardarEdicionVideo();
         });
     }
 
@@ -1869,6 +1884,9 @@ function renderTablaVideos(videos) {
                     <button class="btn btn-outline-primary" onclick="verVideoTutorial(${video.id})" title="Ver y Reproducir Video">
                         <i class="bi bi-play-fill fs-6"></i> Ver
                     </button>
+                    <button class="btn btn-outline-warning text-dark" onclick="abrirModalEditarVideo(${video.id})" title="Editar Video Tutorial">
+                        <i class="bi bi-pencil-square"></i> Editar
+                    </button>
                     <button class="btn btn-outline-danger" onclick="eliminarVideoTutorial(${video.id}, '${escaparHTML(video.titulo).replace(/'/g, "\\'")}')" title="Eliminar Video Tutorial">
                         <i class="bi bi-trash"></i>
                     </button>
@@ -1955,6 +1973,109 @@ async function eliminarVideoTutorial(id, titulo) {
     }
 }
 window.eliminarVideoTutorial = eliminarVideoTutorial;
+
+function abrirModalEditarVideo(id) {
+    const video = allVideosTutoriales.find(v => v.id === id);
+    if (!video) {
+        alert('No se encontró el video tutorial a editar.');
+        return;
+    }
+
+    const inputId = document.getElementById('editVideoId');
+    const inputTitulo = document.getElementById('editTituloVideo');
+    const inputDescripcion = document.getElementById('editDescripcionVideo');
+    const inputTags = document.getElementById('editTagsVideo');
+
+    if (inputId) inputId.value = video.id;
+    if (inputTitulo) inputTitulo.value = video.titulo || '';
+    if (inputDescripcion) inputDescripcion.value = video.descripcion || '';
+    if (inputTags) inputTags.value = video.tags || '';
+
+    if (modalEditarVideoInstance) {
+        modalEditarVideoInstance.show();
+    } else {
+        const modalEl = document.getElementById('modalEditarVideo');
+        if (modalEl && typeof bootstrap !== 'undefined') {
+            modalEditarVideoInstance = new bootstrap.Modal(modalEl);
+            modalEditarVideoInstance.show();
+        }
+    }
+}
+window.abrirModalEditarVideo = abrirModalEditarVideo;
+
+async function guardarEdicionVideo() {
+    const id = document.getElementById('editVideoId')?.value;
+    const titulo = document.getElementById('editTituloVideo')?.value.trim();
+    const descripcion = document.getElementById('editDescripcionVideo')?.value.trim();
+    const tags = document.getElementById('editTagsVideo')?.value.trim();
+
+    if (!id) {
+        alert('Identificador de video no válido.');
+        return;
+    }
+
+    if (!titulo || !descripcion || !tags) {
+        alert('Por favor completa todos los campos requeridos (Título, Descripción y Palabras Clave).');
+        return;
+    }
+
+    const btnSubmit = document.getElementById('btnSubmitEditarVideo');
+    const originalBtnHtml = btnSubmit ? btnSubmit.innerHTML : '';
+    if (btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Guardando cambios...';
+    }
+
+    try {
+        const payload = {
+            titulo: titulo,
+            descripcion: descripcion,
+            palabras_clave: tags,
+            tags: tags
+        };
+
+        const respuesta = await fetch(`${API_URL}/videos/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (respuesta.ok) {
+            const videoActualizado = await respuesta.json();
+
+            // Cerrar el modal de edición
+            if (modalEditarVideoInstance) {
+                modalEditarVideoInstance.hide();
+            } else {
+                const modalEl = document.getElementById('modalEditarVideo');
+                if (modalEl && typeof bootstrap !== 'undefined') {
+                    const inst = bootstrap.Modal.getInstance(modalEl);
+                    if (inst) inst.hide();
+                }
+            }
+
+            alert(`¡Éxito! El video tutorial "${videoActualizado.titulo}" ha sido actualizado correctamente.`);
+
+            // Recargar la tabla para reflejar los cambios
+            await cargarVideosTutoriales();
+        } else {
+            const errorData = await respuesta.json().catch(() => ({}));
+            console.error('Error al actualizar video:', errorData);
+            alert(`Hubo un error al actualizar el video: ${errorData.detail || 'Error en el servidor.'}`);
+        }
+    } catch (error) {
+        console.error('Error de red al actualizar video:', error);
+        alert('No se pudo conectar con el servidor de HelpStream. Verifica tu conexión.');
+    } finally {
+        if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = originalBtnHtml;
+        }
+    }
+}
+window.guardarEdicionVideo = guardarEdicionVideo;
 
 
 // ==========================================
