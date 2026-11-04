@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Form, File, UploadFile, HTTPException
 import os
 import uuid
 import logging
+import unicodedata
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import List, Optional
@@ -17,6 +18,36 @@ router = APIRouter(
 )
 
 BUCKET_NAME = "videos_tutoriales"
+STOPWORDS_TAGS = {"de", "la", "el", "en", "y", "a", "un", "una", "por", "con", "para", "del", "los", "las", "al"}
+
+
+def normalizar_tag(texto: str) -> str:
+    """Elimina acentos y normaliza a minúsculas para comparaciones semánticas tolerantes."""
+    nfkd = unicodedata.normalize("NFKD", texto)
+    return "".join(c for c in nfkd if not unicodedata.combining(c)).strip().lower()
+
+
+def extraer_conjunto_tags(tags_str: Optional[str]) -> set[str]:
+    """
+    Extrae y normaliza un conjunto de tags tanto a nivel de frase completa
+    como a nivel de palabras individuales representativas, permitiendo calcular
+    la intersección precisa entre tags de tickets y de videos tutoriales.
+    """
+    if not tags_str:
+        return set()
+
+    tags_set = set()
+    frases = [t.strip() for t in tags_str.split(",") if t.strip()]
+    for f in frases:
+        norm_f = normalizar_tag(f)
+        if norm_f:
+            tags_set.add(norm_f)
+            palabras = [normalizar_tag(p) for p in f.split()]
+            for p in palabras:
+                if p and p not in STOPWORDS_TAGS and len(p) > 2:
+                    tags_set.add(p)
+
+    return tags_set
 
 
 def generar_url_firmada(storage, ruta_archivo: str, expires_in: int = 3600) -> str:
@@ -128,14 +159,58 @@ def get_videos(
     tags: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    query = db.query(models.VideoTutorial)
+    if tags and tags.strip():
+        # Extracción y normalización de los tags del ticket
+        ticket_tags = extraer_conjunto_tags(tags)
+        
+        # Consultar videos de la base de datos para calcular el score por intersección de tags
+        todos_videos = db.query(models.VideoTutorial).all()
+        scored_videos = []
 
-    if tags:
-        search_tags = [t.strip().lower() for t in tags.split(",")]
-        conditions = [models.VideoTutorial.tags.ilike(f"%{t}%") for t in search_tags]
-        query = query.filter(or_(*conditions))
+        for video in todos_videos:
+            video_tags = extraer_conjunto_tags(video.tags)
+            # 2. Calcular la intersección entre los tags del ticket y los tags de cada video
+            interseccion = ticket_tags.intersection(video_tags)
+            # 3. Asignar un "score" igual a la cantidad de tags que coincidieron
+            score = len(interseccion)
 
-    videos = query.order_by(models.VideoTutorial.id.desc()).offset(skip).limit(limit).all()
+            if score > 0:
+                scored_videos.append({
+                    "video": video,
+                    "score": score,
+                    "interseccion": list(interseccion)
+                })
+
+        # 4. Ordenar de mayor a menor según el score para que el más relevante quede en el índice 0.
+        # Desempate secundario por efectividad (casos_resueltos) y novedad (id).
+        scored_videos.sort(
+            key=lambda x: (
+                x["score"],
+                getattr(x["video"], "casos_resueltos", 0) or 0,
+                x["video"].id
+            ),
+            reverse=True
+        )
+
+        logger.info(
+            f"[Recomendación Videos] Tags del ticket: '{tags}'. Videos coincidentes: {len(scored_videos)}"
+        )
+        if scored_videos:
+            top = scored_videos[0]
+            logger.info(
+                f"[Recomendación Videos] Top 1 (Score {top['score']}): '{top['video'].titulo}' (ID: {top['video'].id}) "
+                f"con tags coincidentes: {top['interseccion']}"
+            )
+
+        videos = [item["video"] for item in scored_videos][skip : skip + limit]
+    else:
+        videos = (
+            db.query(models.VideoTutorial)
+            .order_by(models.VideoTutorial.id.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
     client = get_supabase_client()
     storage = client.storage
