@@ -1880,14 +1880,14 @@ function renderTablaVideos(videos) {
                 </span>
             </td>
             <td class="text-center">
-                <div class="btn-group btn-group-sm" role="group">
-                    <button class="btn btn-outline-primary" onclick="verVideoTutorial(${video.id})" title="Ver y Reproducir Video">
+                <div class="d-flex justify-content-center align-items-center gap-2">
+                    <button class="btn btn-sm btn-outline-primary" onclick="verVideoTutorial(${video.id})" title="Ver y Reproducir Video">
                         <i class="bi bi-play-fill fs-6"></i> Ver
                     </button>
-                    <button class="btn btn-outline-warning text-dark" onclick="abrirModalEditarVideo(${video.id})" title="Editar Video Tutorial">
+                    <button class="btn btn-sm btn-outline-primary" onclick="abrirModalEditarVideo(${video.id})" title="Editar Video Tutorial">
                         <i class="bi bi-pencil-square"></i> Editar
                     </button>
-                    <button class="btn btn-outline-danger" onclick="eliminarVideoTutorial(${video.id}, '${escaparHTML(video.titulo).replace(/'/g, "\\'")}')" title="Eliminar Video Tutorial">
+                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarVideoTutorial(${video.id}, '${escaparHTML(video.titulo).replace(/'/g, "\\'")}')" title="Eliminar Video Tutorial">
                         <i class="bi bi-trash"></i>
                     </button>
                 </div>
